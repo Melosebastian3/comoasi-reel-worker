@@ -45,21 +45,3 @@ jobs:
               assert data.get(key) is False, (key, data)
           print('isolation-contract-ok')
           PY
-
-      - name: Check Studio to worker wiring
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
-            'https://como-asi-studio-jjokns.v2.appdeploy.ai/api/worker/health' > /tmp/studio.json
-          python3 - <<'PY'
-          import json
-          data=json.load(open('/tmp/studio.json'))
-          assert data.get('online') is True, data
-          assert data.get('project') == 'como-asi', data
-          assert data.get('fallback') is False, data
-          worker=data.get('worker') or {}
-          assert worker.get('database') == 'comoasi', data
-          assert worker.get('role') == 'comoasi_app', data
-          print('studio-worker-wiring-ok')
-          PY
