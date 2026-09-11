@@ -34,7 +34,7 @@ export async function createNarrationAudio(workDir, narration, voice = 'es-AR-El
   const textPath = path.join(workDir, 'narration.txt');
   const voicePath = path.join(workDir, 'voice.mp3');
   await fs.writeFile(textPath, narration, 'utf8');
-  await run('edge-tts', ['--voice', voice, '--rate', '+6%', '--text-file', textPath, '--write-media', voicePath]);
+  await run('edge-tts', ['--voice', voice, '--rate', '+6%', '-f', textPath, '--write-media', voicePath]);
   return voicePath;
 }
 
