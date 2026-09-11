@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { healthcheckDb, query } from './db.js';
 import { createJob, setJobStage } from './pipeline.js';
 import { recoverJobs, startJob } from './job-runner.js';
+import { studioCall } from './engine.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -34,6 +35,15 @@ app.get('/isolation', (_req, res) => {
     sharesHistyraRepo: false,
     sharesHistyraStorage: false,
   });
+});
+
+app.get('/studio-health', async (_req, res) => {
+  try {
+    const studio = await studioCall('/api/engine/ping', {}, { timeoutMs: 30000, attempts: 2 });
+    res.json({ ok: true, project: projectKey, transport: 'appdeploy-api-v2', studio });
+  } catch (error) {
+    res.status(503).json({ ok: false, project: projectKey, transport: 'appdeploy-api-v2', error: String(error) });
+  }
 });
 
 app.get('/api/settings', async (_req, res) => {
