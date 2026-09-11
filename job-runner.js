@@ -14,6 +14,8 @@ function normalizeTopic(value) {
 
 function storyNeedsRegeneration(story) {
   if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 20) return true;
+  const validDeliveries = new Set(['golpe', 'veneno', 'suspenso', 'incredula', 'remate']);
+  if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '').toLowerCase()))) return true;
   const narration = story.scenes.map(scene => String(scene?.narration || '')).join(' ');
   const englishSignals = narration.match(/\b(the|this|that|but|with|they|their|what|is|are|was|were|using|would|because|people|some|others|hard|easy|gets|paid|watch|buy|models|brand|sales|haven't|isn't|don't)\b/gi) || [];
   const spanishSignals = narration.match(/\b(el|la|los|las|esto|pero|con|que|por|para|una|un|es|son|está|están|porque|gente|marca|ventas|comprarías)\b/gi) || [];
@@ -212,7 +214,7 @@ async function processJob(id) {
     const voicePath = await createNarrationAudio(
       workDir,
       scenes,
-      process.env.TTS_VOICE || 'es-MX-JorgeNeural',
+      process.env.TTS_VOICE || 'es-MX-DaliaNeural',
       topicData.category
     );
     const voiceAssetPath = `audio/${reel.id}/voice.mp3`;
