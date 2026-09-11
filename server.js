@@ -2,12 +2,13 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { healthcheckDb, query } from './db.js';
 import { createJob, setJobStage } from './pipeline.js';
+import { recoverJobs, startJob } from './job-runner.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const projectKey = 'como-asi';
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 app.use((req, res, next) => {
   res.setHeader('X-Como-Asi-Project', projectKey);
@@ -111,10 +112,24 @@ app.post('/api/jobs', async (req, res) => {
   res.status(202).json(job);
 });
 
+app.post('/api/generate', async (req, res) => {
+  const payload = req.body && typeof req.body === 'object' ? req.body : {};
+  const job = await createJob({ payload });
+  startJob(job.id);
+  res.status(202).json({ jobId: job.id, status: job.status, stage: job.stage, progress: job.progress });
+});
+
 app.get('/api/jobs/:id', async (req, res) => {
-  const { rows } = await query('select * from comoasi.reel_jobs where id=$1', [req.params.id]);
+  const { rows } = await query(`select j.*, r.title as reel_title, r.topic as reel_topic, r.status as reel_status, r.video_object_key from comoasi.reel_jobs j left join comoasi.reels r on r.id=j.reel_id where j.id=$1`, [req.params.id]);
   if (!rows[0]) return res.status(404).json({ error: 'not_found' });
   res.json(rows[0]);
+});
+
+app.post('/api/jobs/:id/retry', async (req, res) => {
+  const { rows } = await query(`update comoasi.reel_jobs set status='queued', stage='queued', progress=0, error=null, completed_at=null, updated_at=now() where id=$1 and status='failed' returning *`, [req.params.id]);
+  if (!rows[0]) return res.status(409).json({ error: 'job_not_failed_or_not_found' });
+  startJob(req.params.id);
+  res.status(202).json(rows[0]);
 });
 
 app.post('/api/jobs/:id/stage', async (req, res) => {
@@ -168,6 +183,12 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: 'internal_error' });
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`[como-asi] independent worker listening on ${port}`);
+  try {
+    const recovered = await recoverJobs();
+    if (recovered) console.log(`[como-asi] recovered ${recovered} queued/running job(s)`);
+  } catch (error) {
+    console.error('[como-asi] recovery scan failed', error);
+  }
 });
