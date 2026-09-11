@@ -98,33 +98,58 @@ function writeWavHeader(buffer, sampleRate, sampleCount) {
   buffer.writeUInt32LE(dataSize, 40);
 }
 
-export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-JorgeNeural', category = 'actualidad') {
+function normalizeDelivery(value) {
+  const delivery = String(value || '').toLowerCase();
+  return ['golpe', 'veneno', 'suspenso', 'incredula', 'remate'].includes(delivery) ? delivery : 'veneno';
+}
+
+function performLine(text, delivery) {
+  const clean = cleanSpeech(text).replace(/[.!?…]+$/u, '');
+  if (delivery === 'suspenso' || delivery === 'veneno') return `${clean}...`;
+  if (delivery === 'golpe' || delivery === 'incredula') return `¡${clean}!`;
+  return `${clean}.`;
+}
+
+export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-DaliaNeural', category = 'actualidad') {
   const lines = Array.isArray(scenesOrNarration)
-    ? scenesOrNarration.map(scene => cleanSpeech(scene?.narration)).filter(Boolean)
-    : [cleanSpeech(scenesOrNarration)].filter(Boolean);
+    ? scenesOrNarration
+      .map(scene => ({ text: cleanSpeech(scene?.narration), delivery: normalizeDelivery(scene?.delivery) }))
+      .filter(line => Boolean(line.text))
+    : [{ text: cleanSpeech(scenesOrNarration), delivery: 'veneno' }].filter(line => Boolean(line.text));
   if (lines.length === 0) throw new Error('narration_required');
 
   const blocks = [];
-  for (let index = 0; index < lines.length; index += 4) {
-    blocks.push(lines.slice(index, index + 4).join(' ... '));
+  for (let index = 0; index < lines.length; index += 2) {
+    const pair = lines.slice(index, index + 2);
+    const lead = pair[0];
+    blocks.push({
+      text: pair.map(line => performLine(line.text, line.delivery)).join(' '),
+      delivery: pair.at(-1)?.delivery || lead.delivery,
+    });
   }
 
   const profile = categoryProfile(category);
-  const cadence = profile.tension > 0.8
-    ? [{ rate: 18, pitch: 1 }, { rate: 14, pitch: -1 }, { rate: 20, pitch: 2 }, { rate: 16, pitch: 0 }, { rate: 19, pitch: 1 }]
-    : [{ rate: 22, pitch: 4 }, { rate: 18, pitch: 2 }, { rate: 20, pitch: 3 }, { rate: 17, pitch: 1 }, { rate: 21, pitch: 3 }];
+  const tensionLift = profile.tension > 0.75 ? 2 : 0;
+  const deliveryStyles = {
+    golpe: { rate: 21 + tensionLift, pitch: 4, volume: 10 },
+    veneno: { rate: 14 + tensionLift, pitch: 1, volume: 8 },
+    suspenso: { rate: 8 + tensionLift, pitch: -2, volume: 7 },
+    incredula: { rate: 18 + tensionLift, pitch: 5, volume: 9 },
+    remate: { rate: 11 + tensionLift, pitch: -3, volume: 10 },
+  };
 
   const clipPaths = [];
   for (let index = 0; index < blocks.length; index += 1) {
     const textPath = path.join(workDir, `voice-block-${index + 1}.txt`);
     const clipPath = path.join(workDir, `voice-block-${index + 1}.mp3`);
-    const style = cadence[index % cadence.length];
-    await fs.writeFile(textPath, blocks[index], 'utf8');
+    const block = blocks[index];
+    const style = deliveryStyles[block.delivery] || deliveryStyles.veneno;
+    await fs.writeFile(textPath, block.text, 'utf8');
     await run('edge-tts', [
       '--voice', voice,
-      '--rate', `${style.rate >= 0 ? '+' : ''}${style.rate}%`,
+      '--rate', `+${style.rate}%`,
       '--pitch', `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`,
-      '--volume', '+8%',
+      '--volume', `+${style.volume}%`,
       '-f', textPath,
       '--write-media', clipPath,
     ]);
