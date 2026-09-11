@@ -132,7 +132,14 @@ async function processJob(id) {
     const reel = await upsertReel(job, topicData);
 
     await setJobStage(id, 'research');
-    const research = job.result?.research || await studioCall('/api/engine/research', { topic: topicData.topic, angle: topicData.angle }, { timeoutMs: 180000, attempts: 5 });
+    const research = job.result?.research || await studioCall('/api/engine/research', {
+      topic: topicData.topic,
+      angle: topicData.angle,
+      protagonist: topicData.protagonist,
+      eventKey: topicData.eventKey,
+      narrativeQuestion: topicData.narrativeQuestion,
+      sources: Array.isArray(topicData.sources) ? topicData.sources : [],
+    }, { timeoutMs: 180000, attempts: 5 });
     await persistJobResult(id, { research });
     await query(`update comoasi.reels set research=$2::jsonb, status='generating', updated_at=now() where id=$1`, [reel.id, JSON.stringify(research)]);
 
