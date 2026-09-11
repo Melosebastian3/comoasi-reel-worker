@@ -21,6 +21,32 @@ function cleanSpeech(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+async function probeDuration(filePath) {
+  try {
+    const { stdout } = await run('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath,
+    ]);
+    const duration = Number.parseFloat(stdout.trim());
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildAtempoChain(rate) {
+  const filters = [];
+  let remaining = rate;
+  while (remaining > 2) {
+    filters.push('atempo=2');
+    remaining /= 2;
+  }
+  filters.push(`atempo=${remaining.toFixed(5)}`);
+  return filters.join(',');
+}
+
 function hashString(value) {
   let hash = 2166136261;
   for (const char of String(value || '')) {
@@ -223,10 +249,20 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const videoFilter = 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,fps=30';
   await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concatFile, '-t', '60', '-vf', videoFilter, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '29', '-pix_fmt', 'yuv420p', '-an', visualOnly]);
 
+  const narrationDuration = await probeDuration(narrationPath);
+  const narrationTarget = totalDuration - 0.25;
+  const narrationTempo = narrationDuration && narrationDuration > narrationTarget
+    ? narrationDuration / narrationTarget
+    : 1;
+  const tempoFilter = narrationTempo > 1.0005
+    ? `${buildAtempoChain(narrationTempo)},`
+    : '';
+  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.08,acompressor=threshold=-16dB:ratio=2.2:attack=6:release=70,asplit=2[voice_mix][voice_sc];[2:a]volume=0.25[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=7:attack=15:release=220[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=8:TP=-1.2[a]`;
+
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
     '-y', '-i', visualOnly, '-i', narrationPath, '-i', music,
-    '-filter_complex', '[1:a]adelay=100|100,volume=1.08,acompressor=threshold=-16dB:ratio=2.2:attack=6:release=70[voice];[2:a]volume=0.25[musicbed];[musicbed][voice]sidechaincompress=threshold=0.025:ratio=7:attack=15:release=220[ducked];[voice][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=8:TP=-1.2[a]',
+    '-filter_complex', audioFilter,
     '-map', '0:v:0', '-map', '[a]', '-t', '60', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', finalPath,
   ]);
 
