@@ -1,0 +1,38 @@
+name: Studio transport probe
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect deployed Studio transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://como-asi-studio-jjokns.v2.appdeploy.ai/'
+          curl --fail --silent --show-error "$BASE" -o /tmp/index.html
+          echo '--- script refs ---'
+          grep -oE 'src="[^"]+\.js[^"]*"' /tmp/index.html || true
+          python3 - <<'PY'
+          import re, urllib.parse, urllib.request
+          base='https://como-asi-studio-jjokns.v2.appdeploy.ai/'
+          html=open('/tmp/index.html').read()
+          refs=re.findall(r'src="([^"]+\.js[^"]*)"', html)
+          print('bundle-count', len(refs))
+          for i,ref in enumerate(refs[:5]):
+              url=urllib.parse.urljoin(base,ref)
+              data=urllib.request.urlopen(url, timeout=30).read().decode('utf-8','ignore')
+              print('BUNDLE',i,url,'bytes',len(data))
+              low=data.lower()
+              for needle in ['__appdeploy','appdeploy.ai','/api/','x-appdeploy','invoke','rpc']:
+                  pos=low.find(needle.lower())
+                  if pos>=0:
+                      print('MATCH',needle,repr(data[max(0,pos-350):pos+700]))
+          PY
