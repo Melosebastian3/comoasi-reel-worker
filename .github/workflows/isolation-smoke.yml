@@ -45,3 +45,23 @@ jobs:
               assert data.get(key) is False, (key, data)
           print('isolation-contract-ok')
           PY
+
+      - name: Check Worker to Studio transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            'https://comoasi-reel-worker-production-4de5.up.railway.app/studio-health' > /tmp/studio-health.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/studio-health.json'))
+          assert data.get('ok') is True, data
+          assert data.get('project') == 'como-asi', data
+          assert data.get('transport') == 'appdeploy-api-v2', data
+          studio=data.get('studio') or {}
+          assert studio.get('ok') is True, data
+          assert studio.get('project') == 'como-asi', data
+          assert studio.get('engine') == 'studio', data
+          assert studio.get('fallback') is False, data
+          print('worker-to-studio-ok')
+          PY
