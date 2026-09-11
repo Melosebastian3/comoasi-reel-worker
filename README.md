@@ -29,3 +29,5 @@ This repository must never import, call, read, write or fall back to HISTYRA inf
 - `GET/POST /api/publisher/queue`
 
 No HISTYRA fallback is permitted.
+
+Deployment trigger: isolated Railway production service.
