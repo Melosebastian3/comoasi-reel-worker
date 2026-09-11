@@ -145,21 +145,31 @@ async function processJob(id) {
     }, { timeoutMs: 240000, attempts: 5 });
     if (!Array.isArray(story.scenes) || story.scenes.length !== 20) throw new Error('story_must_have_20_scenes');
     await persistJobResult(id, { story });
+
+    const existingReel = await query('select storyboard from comoasi.reels where id=$1', [reel.id]);
+    const savedScenes = Array.isArray(existingReel.rows[0]?.storyboard) ? existingReel.rows[0].storyboard : [];
+    const scenes = story.scenes.map((scene, index) => ({
+      ...scene,
+      index: index + 1,
+      ...(savedScenes[index]?.assetPath ? { assetPath: savedScenes[index].assetPath } : {}),
+    }));
+
     await query(
       `update comoasi.reels set title=$2, hook=$3, narration=$4, storyboard=$5::jsonb, scene_count=20, updated_at=now() where id=$1`,
-      [reel.id, story.title || topicData.title, story.hook || topicData.hook, story.narration || '', JSON.stringify(story.scenes)]
+      [reel.id, story.title || topicData.title, story.hook || topicData.hook, story.narration || '', JSON.stringify(scenes)]
     );
 
     await setJobStage(id, 'storyboard');
-    const scenes = story.scenes.map((scene, index) => ({ ...scene, index: index + 1 }));
     await setJobStage(id, 'scenes');
     const scenePaths = [];
+    let reusedScenes = 0;
     for (let index = 0; index < scenes.length; index += 1) {
       const sceneResult = await obtainSceneImage({ reelId: reel.id, scene: scenes[index], index, workDir, topic: topicData.topic });
+      if (sceneResult.reused) reusedScenes += 1;
       scenes[index].assetPath = sceneResult.assetPath;
       scenePaths.push(sceneResult.localPath);
       await query('update comoasi.reels set storyboard=$2::jsonb, updated_at=now() where id=$1', [reel.id, JSON.stringify(scenes)]);
-      await persistJobResult(id, { scenesCompleted: index + 1 });
+      await persistJobResult(id, { scenesCompleted: index + 1, reusedScenes });
     }
 
     await setJobStage(id, 'voice');
