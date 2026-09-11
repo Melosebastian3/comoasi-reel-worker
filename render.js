@@ -142,12 +142,13 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
 
   const profile = categoryProfile(category);
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
+  // Interpretación de amiga chismosa: contraste fuerte entre ataque, susurro y remate.
   const deliveryStyles = {
-    golpe: { rate: 21 + tensionLift, pitch: 4, volume: 10 },
-    veneno: { rate: 14 + tensionLift, pitch: 1, volume: 8 },
-    suspenso: { rate: 8 + tensionLift, pitch: -2, volume: 7 },
-    incredula: { rate: 18 + tensionLift, pitch: 5, volume: 9 },
-    remate: { rate: 11 + tensionLift, pitch: -3, volume: 10 },
+    golpe: { rate: 24 + tensionLift, pitch: 6, volume: 11 },
+    veneno: { rate: 16 + tensionLift, pitch: 2, volume: 9 },
+    suspenso: { rate: 7 + tensionLift, pitch: -3, volume: 8 },
+    incredula: { rate: 22 + tensionLift, pitch: 7, volume: 10 },
+    remate: { rate: 13 + tensionLift, pitch: -4, volume: 11 },
   };
 
   const clipPaths = [];
