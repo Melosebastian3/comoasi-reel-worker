@@ -11,7 +11,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - name: Check worker health and dedicated Neon database
         shell: bash
@@ -64,4 +64,23 @@ jobs:
           assert studio.get('engine') == 'studio', data
           assert studio.get('fallback') is False, data
           print('worker-to-studio-ok')
+          PY
+
+      - name: Check live current-source radar
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 3 \
+            'https://api-v2.appdeploy.ai/app/como-asi-studio-jjokns/api/radar/live?category=famosos' > /tmp/live-radar.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/live-radar.json'))
+          assert data.get('ok') is True, data
+          signals=data.get('signals') or []
+          assert len(signals) >= 3, data
+          assert 'GDELT' in (data.get('providers') or []), data
+          assert 'Google News' in (data.get('providers') or []), data
+          for signal in signals[:3]:
+              assert signal.get('title') and signal.get('url') and signal.get('source'), signal
+          print('live-current-source-radar-ok', len(signals))
           PY
