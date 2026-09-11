@@ -1,0 +1,65 @@
+name: Como Asi isolation smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check worker health and dedicated Neon database
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            'https://comoasi-reel-worker-production-4de5.up.railway.app/health' > /tmp/health.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/health.json'))
+          assert data.get('ok') is True, data
+          assert data.get('project') == 'como-asi', data
+          assert data.get('isolated') is True, data
+          assert data.get('database') == 'comoasi', data
+          assert data.get('role') == 'comoasi_app', data
+          print('worker-health-ok')
+          PY
+
+      - name: Check strict isolation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            'https://comoasi-reel-worker-production-4de5.up.railway.app/isolation' > /tmp/isolation.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/isolation.json'))
+          assert data.get('project') == 'como-asi', data
+          assert data.get('strictIsolation') is True, data
+          for key in ('sharesHistyraDatabase','sharesHistyraWorker','sharesHistyraRepo','sharesHistyraStorage'):
+              assert data.get(key) is False, (key, data)
+          print('isolation-contract-ok')
+          PY
+
+      - name: Check Studio to worker wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            'https://como-asi-studio-jjokns.v2.appdeploy.ai/api/worker/health' > /tmp/studio.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/studio.json'))
+          assert data.get('online') is True, data
+          assert data.get('project') == 'como-asi', data
+          assert data.get('fallback') is False, data
+          worker=data.get('worker') or {}
+          assert worker.get('database') == 'comoasi', data
+          assert worker.get('role') == 'comoasi_app', data
+          print('studio-worker-wiring-ok')
+          PY
