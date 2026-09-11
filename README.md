@@ -31,3 +31,4 @@ This repository must never import, call, read, write or fall back to HISTYRA inf
 No HISTYRA fallback is permitted.
 
 Deployment trigger: isolated Railway production service.
+Deployment trigger 2: Railway GitHub access verified on 2026-09-11.
