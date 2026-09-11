@@ -147,9 +147,9 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
     await fs.writeFile(textPath, block.text, 'utf8');
     await run('edge-tts', [
       '--voice', voice,
-      '--rate', `+${style.rate}%`,
-      '--pitch', `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`,
-      '--volume', `+${style.volume}%`,
+      `--rate=+${style.rate}%`,
+      `--pitch=${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`,
+      `--volume=+${style.volume}%`,
       '-f', textPath,
       '--write-media', clipPath,
     ]);
