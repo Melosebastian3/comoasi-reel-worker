@@ -17,62 +17,103 @@ function run(command, args, options = {}) {
   });
 }
 
-function srtTime(seconds) {
-  const ms = Math.max(0, Math.round(seconds * 1000));
-  const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
-  const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
-  const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
-  const milli = String(ms % 1000).padStart(3, '0');
-  return `${h}:${m}:${s},${milli}`;
-}
-
-function safeSubtitle(text) {
+function cleanSpeech(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-function socialSubtitle(text, maxChars = 28) {
-  const words = safeSubtitle(text).split(' ').filter(Boolean);
-  const lines = [];
-  let current = '';
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (current && candidate.length > maxChars) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = candidate;
-    }
+function hashString(value) {
+  let hash = 2166136261;
+  for (const char of String(value || '')) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
   }
-  if (current) lines.push(current);
-  return lines.join('\n');
+  return hash >>> 0;
 }
 
-export async function createNarrationAudio(workDir, narration, voice = 'es-AR-ElenaNeural') {
-  const textPath = path.join(workDir, 'narration.txt');
+function categoryProfile(category) {
+  const key = String(category || '').toLowerCase();
+  const profiles = {
+    actualidad: { bpm: 112, rootMidi: 45, progression: [0, 5, 3, 7], brightness: 0.45, tension: 0.62 },
+    famosos: { bpm: 120, rootMidi: 48, progression: [0, 8, 5, 7], brightness: 0.82, tension: 0.34 },
+    chisme_polemica: { bpm: 124, rootMidi: 47, progression: [0, 3, 8, 7], brightness: 0.68, tension: 0.72 },
+    viral_internet: { bpm: 132, rootMidi: 50, progression: [0, 7, 10, 5], brightness: 0.88, tension: 0.48 },
+    internet: { bpm: 132, rootMidi: 50, progression: [0, 7, 10, 5], brightness: 0.88, tension: 0.48 },
+    bizarro_wtf: { bpm: 108, rootMidi: 43, progression: [0, 1, 6, 5], brightness: 0.38, tension: 0.9 },
+    bizarro: { bpm: 108, rootMidi: 43, progression: [0, 1, 6, 5], brightness: 0.38, tension: 0.9 },
+    humor_negro: { bpm: 94, rootMidi: 41, progression: [0, 3, 1, 6], brightness: 0.2, tension: 0.84 },
+    cultura_pop_actualidad: { bpm: 126, rootMidi: 50, progression: [0, 5, 8, 7], brightness: 0.9, tension: 0.3 },
+    cultura_pop: { bpm: 126, rootMidi: 50, progression: [0, 5, 8, 7], brightness: 0.9, tension: 0.3 },
+  };
+  return profiles[key] || profiles.actualidad;
+}
+
+function midiToFreq(midi) {
+  return 440 * (2 ** ((midi - 69) / 12));
+}
+
+function writeWavHeader(buffer, sampleRate, sampleCount) {
+  const channels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * channels * bitsPerSample / 8;
+  const blockAlign = channels * bitsPerSample / 8;
+  const dataSize = sampleCount * blockAlign;
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(byteRate, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+}
+
+export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-JorgeNeural', category = 'actualidad') {
+  const lines = Array.isArray(scenesOrNarration)
+    ? scenesOrNarration.map(scene => cleanSpeech(scene?.narration)).filter(Boolean)
+    : [cleanSpeech(scenesOrNarration)].filter(Boolean);
+  if (lines.length === 0) throw new Error('narration_required');
+
+  const blocks = [];
+  for (let index = 0; index < lines.length; index += 4) {
+    blocks.push(lines.slice(index, index + 4).join(' ... '));
+  }
+
+  const profile = categoryProfile(category);
+  const cadence = profile.tension > 0.8
+    ? [{ rate: 18, pitch: 1 }, { rate: 14, pitch: -1 }, { rate: 20, pitch: 2 }, { rate: 16, pitch: 0 }, { rate: 19, pitch: 1 }]
+    : [{ rate: 22, pitch: 4 }, { rate: 18, pitch: 2 }, { rate: 20, pitch: 3 }, { rate: 17, pitch: 1 }, { rate: 21, pitch: 3 }];
+
+  const clipPaths = [];
+  for (let index = 0; index < blocks.length; index += 1) {
+    const textPath = path.join(workDir, `voice-block-${index + 1}.txt`);
+    const clipPath = path.join(workDir, `voice-block-${index + 1}.mp3`);
+    const style = cadence[index % cadence.length];
+    await fs.writeFile(textPath, blocks[index], 'utf8');
+    await run('edge-tts', [
+      '--voice', voice,
+      '--rate', `${style.rate >= 0 ? '+' : ''}${style.rate}%`,
+      '--pitch', `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`,
+      '--volume', '+8%',
+      '-f', textPath,
+      '--write-media', clipPath,
+    ]);
+    clipPaths.push(clipPath);
+  }
+
+  const concatFile = path.join(workDir, 'voice-parts.txt');
+  await fs.writeFile(concatFile, clipPaths.map(file => `file '${file.replaceAll("'", "'\\''")}'`).join('\n'), 'utf8');
   const voicePath = path.join(workDir, 'voice.mp3');
-  await fs.writeFile(textPath, narration, 'utf8');
-  await run('edge-tts', [
-    '--voice', voice,
-    '--rate', '+18%',
-    '--pitch', '+3Hz',
-    '--volume', '+6%',
-    '-f', textPath,
-    '--write-media', voicePath,
+  await run('ffmpeg', [
+    '-y', '-f', 'concat', '-safe', '0', '-i', concatFile,
+    '-af', 'highpass=f=80,lowpass=f=12500,acompressor=threshold=-18dB:ratio=2.4:attack=8:release=90,loudnorm=I=-16:LRA=7:TP=-1.5',
+    '-c:a', 'libmp3lame', '-b:a', '96k', voicePath,
   ]);
   return voicePath;
-}
-
-export async function createSubtitles(workDir, scenes, coverDuration = 0.95, totalDuration = 60) {
-  const sceneDuration = (totalDuration - coverDuration) / scenes.length;
-  const lines = [];
-  scenes.forEach((scene, i) => {
-    const start = i === 0 ? 0.55 : coverDuration + i * sceneDuration;
-    const end = Math.min(totalDuration - 0.05, coverDuration + (i + 1) * sceneDuration);
-    lines.push(String(i + 1), `${srtTime(start)} --> ${srtTime(end)}`, socialSubtitle(scene.narration), '');
-  });
-  const srtPath = path.join(workDir, 'captions.srt');
-  await fs.writeFile(srtPath, lines.join('\n'), 'utf8');
-  return srtPath;
 }
 
 export async function createCoverFrame(workDir, coverPath, title, deck) {
@@ -92,19 +133,75 @@ export async function createCoverFrame(workDir, coverPath, title, deck) {
   return out;
 }
 
-export async function createProceduralMusic(workDir, category, duration = 60) {
+export async function createProceduralMusic(workDir, category, duration = 60, seedText = '') {
   const out = path.join(workDir, 'music.wav');
-  const palettes = {
-    actualidad: [98, 146.83, 196],
-    famosos: [110, 164.81, 220],
-    cultura_pop: [130.81, 196, 261.63],
-    internet: [123.47, 185, 246.94],
-    bizarro: [92.5, 138.59, 207.65],
-    humor_negro: [82.41, 123.47, 185],
-  };
-  const f = palettes[category] || palettes.actualidad;
-  const expr = `0.020*sin(2*PI*${f[0]}*t)+0.014*sin(2*PI*${f[1]}*t)+0.010*sin(2*PI*${f[2]}*t)`;
-  await run('ffmpeg', ['-y', '-f', 'lavfi', '-i', `aevalsrc=${expr}:s=44100:d=${duration}`, '-af', 'lowpass=f=2200,afade=t=in:st=0:d=2,afade=t=out:st=57:d=3', '-c:a', 'pcm_s16le', out]);
+  const sampleRate = 22050;
+  const sampleCount = Math.floor(duration * sampleRate);
+  const buffer = Buffer.alloc(44 + sampleCount * 2);
+  writeWavHeader(buffer, sampleRate, sampleCount);
+
+  const profile = categoryProfile(category);
+  const seed = hashString(`${category}|${seedText}`) || 1;
+  const bpm = profile.bpm + (seed % 5) - 2;
+  const beatSeconds = 60 / bpm;
+  const barSeconds = beatSeconds * 4;
+  const scale = [0, 3, 5, 7, 10, 12];
+  const motif = [0, 2, 4, 1, 3, 5, 2, 4].map((value, index) => scale[(value + ((seed >>> (index % 16)) & 1)) % scale.length]);
+  let noiseState = seed;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const t = i / sampleRate;
+    const beatPos = (t / beatSeconds) % 1;
+    const halfBeatPos = (t / (beatSeconds / 2)) % 1;
+    const beatIndex = Math.floor(t / beatSeconds);
+    const barIndex = Math.floor(t / barSeconds);
+    const chordOffset = profile.progression[barIndex % profile.progression.length];
+    const root = profile.rootMidi + chordOffset;
+    const bassFreq = midiToFreq(root - 12);
+    const fifthFreq = midiToFreq(root + 7);
+    const thirdFreq = midiToFreq(root + 3);
+    const motifFreq = midiToFreq(root + 12 + motif[Math.floor(t / (beatSeconds / 2)) % motif.length]);
+
+    const fadeIn = Math.min(1, t / 0.7);
+    const fadeOut = Math.min(1, Math.max(0, (duration - t) / 2.5));
+    const globalEnv = fadeIn * fadeOut;
+    const sectionLift = t > 45 ? 1.15 : t > 28 ? 1.08 : 1;
+
+    const kickEnv = Math.exp(-beatPos * 12) * ((beatIndex % 4 === 0 || beatIndex % 4 === 2) ? 1 : 0.42);
+    const kick = Math.sin(2 * Math.PI * (52 + 35 * (1 - beatPos)) * t) * kickEnv * 0.19;
+
+    const snareGate = (beatIndex % 4 === 1 || beatIndex % 4 === 3) ? Math.exp(-beatPos * 18) : 0;
+    noiseState = (Math.imul(noiseState, 1664525) + 1013904223) >>> 0;
+    const noise = ((noiseState / 0xffffffff) * 2 - 1);
+    const snare = noise * snareGate * (0.075 + profile.tension * 0.035);
+
+    const hatGate = Math.exp(-halfBeatPos * 30);
+    const hat = noise * hatGate * (0.025 + profile.brightness * 0.018);
+
+    const bassGate = 0.35 + 0.65 * Math.exp(-beatPos * 3.5);
+    const bass = (Math.sin(2 * Math.PI * bassFreq * t) + 0.22 * Math.sin(2 * Math.PI * bassFreq * 2 * t)) * bassGate * 0.085;
+
+    const padLfo = 0.65 + 0.35 * Math.sin(2 * Math.PI * 0.08 * t);
+    const pad = (
+      Math.sin(2 * Math.PI * midiToFreq(root) * t) +
+      0.7 * Math.sin(2 * Math.PI * thirdFreq * t) +
+      0.55 * Math.sin(2 * Math.PI * fifthFreq * t)
+    ) * padLfo * (0.022 + profile.brightness * 0.012);
+
+    const pluckEnv = Math.exp(-halfBeatPos * (5.5 + profile.tension * 2));
+    const pluck = Math.sin(2 * Math.PI * motifFreq * t) * pluckEnv * (0.025 + profile.brightness * 0.03);
+
+    const glitchPulse = profile.tension > 0.75 && ((beatIndex + seed) % 7 === 0)
+      ? Math.sin(2 * Math.PI * (motifFreq * 1.5) * t) * Math.exp(-beatPos * 16) * 0.025
+      : 0;
+
+    let sample = (kick + snare + hat + bass + pad + pluck + glitchPulse) * globalEnv * sectionLift;
+    sample = Math.tanh(sample * 1.45) * 0.72;
+    const intSample = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
+    buffer.writeInt16LE(intSample, 44 + i * 2);
+  }
+
+  await fs.writeFile(out, buffer);
   return out;
 }
 
@@ -113,8 +210,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const coverDuration = 0.95;
   const sceneDuration = (totalDuration - coverDuration) / scenePaths.length;
   const framedCover = await createCoverFrame(workDir, coverPath, title, coverDeck);
-  const subtitles = await createSubtitles(workDir, scenes, coverDuration, totalDuration);
-  const music = await createProceduralMusic(workDir, category, totalDuration);
+  const music = await createProceduralMusic(workDir, category, totalDuration, `${title}|${coverDeck}`);
   const concatFile = path.join(workDir, 'visuals.txt');
   const parts = [`file '${framedCover.replaceAll("'", "'\\''")}'`, `duration ${coverDuration.toFixed(4)}`];
   for (const scenePath of scenePaths) {
@@ -124,20 +220,20 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   await fs.writeFile(concatFile, parts.join('\n'), 'utf8');
 
   const visualOnly = path.join(workDir, 'visual.mp4');
-  const videoFilter = `scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,fps=30,subtitles=${subtitles}:force_style='FontName=DejaVu Sans,FontSize=28,PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000,BorderStyle=3,Outline=2,Shadow=0,MarginV=105,Alignment=2'`;
+  const videoFilter = 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,fps=30';
   await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concatFile, '-t', '60', '-vf', videoFilter, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '29', '-pix_fmt', 'yuv420p', '-an', visualOnly]);
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
     '-y', '-i', visualOnly, '-i', narrationPath, '-i', music,
-    '-filter_complex', '[1:a]adelay=120|120,volume=1.0[voice];[2:a]volume=0.12[music];[voice][music]amix=inputs=2:duration=longest:dropout_transition=2[a]',
-    '-map', '0:v:0', '-map', '[a]', '-t', '60', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', finalPath,
+    '-filter_complex', '[1:a]adelay=100|100,volume=1.08,acompressor=threshold=-16dB:ratio=2.2:attack=6:release=70[voice];[2:a]volume=0.25[musicbed];[musicbed][voice]sidechaincompress=threshold=0.025:ratio=7:attack=15:release=220[ducked];[voice][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=8:TP=-1.2[a]',
+    '-map', '0:v:0', '-map', '[a]', '-t', '60', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', finalPath,
   ]);
 
   const stat = await fs.stat(finalPath);
   if (stat.size > 4600000) {
     const compact = path.join(workDir, 'final-compact.mp4');
-    await run('ffmpeg', ['-y', '-i', finalPath, '-c:v', 'libx264', '-b:v', '430k', '-maxrate', '500k', '-bufsize', '1000k', '-c:a', 'aac', '-b:a', '56k', '-movflags', '+faststart', compact]);
+    await run('ffmpeg', ['-y', '-i', finalPath, '-c:v', 'libx264', '-b:v', '430k', '-maxrate', '500k', '-bufsize', '1000k', '-c:a', 'aac', '-b:a', '72k', '-movflags', '+faststart', compact]);
     return compact;
   }
   return finalPath;
