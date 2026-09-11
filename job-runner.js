@@ -12,6 +12,14 @@ function normalizeTopic(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+function storyNeedsRegeneration(story) {
+  if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 20) return true;
+  const narration = story.scenes.map(scene => String(scene?.narration || '')).join(' ');
+  const englishSignals = narration.match(/\b(the|this|that|but|with|they|their|what|is|are|was|were|using|would|because|people|some|others|hard|easy|gets|paid|watch|buy|models|brand|sales|haven't|isn't|don't)\b/gi) || [];
+  const spanishSignals = narration.match(/\b(el|la|los|las|esto|pero|con|que|por|para|una|un|es|son|está|están|porque|gente|marca|ventas|comprarías)\b/gi) || [];
+  return englishSignals.length > Math.max(3, Math.ceil(spanishSignals.length * 0.35));
+}
+
 async function downloadTo(url, filePath) {
   const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
   if (!response.ok) throw new Error(`asset_download_failed_${response.status}`);
@@ -107,7 +115,25 @@ async function obtainSceneImage({ reelId, scene, index, workDir, topic }) {
       // Regenerate safely if a prior asset is unavailable.
     }
   }
-  const generated = await studioCall('/api/engine/image', { topic, visualPrompt: scene.visualPrompt }, { timeoutMs: 240000, attempts: 5 });
+  let generated;
+  try {
+    generated = await studioCall(
+      '/api/engine/image',
+      { topic, visualPrompt: scene.visualPrompt },
+      { timeoutMs: 240000, attempts: 3 }
+    );
+  } catch (primaryError) {
+    console.warn(`[como-asi] scene ${index + 1} primary image failed; requesting symbolic fallback`, primaryError instanceof Error ? primaryError.message : String(primaryError));
+    generated = await studioCall(
+      '/api/engine/image',
+      {
+        topic: 'campaña viral y controversia de marketing',
+        safeFallback: true,
+        visualPrompt: 'Representación editorial simbólica mediante objetos, iluminación y metáforas visuales; ninguna persona real ni situación íntima.',
+      },
+      { timeoutMs: 240000, attempts: 4 }
+    );
+  }
   await writeBase64File(localPath, generated.data);
   await uploadAsset(assetPath, localPath, generated.mimeType || 'image/png');
   return { localPath, assetPath, reused: false };
@@ -144,17 +170,20 @@ async function processJob(id) {
     await query(`update comoasi.reels set research=$2::jsonb, status='generating', updated_at=now() where id=$1`, [reel.id, JSON.stringify(research)]);
 
     await setJobStage(id, 'narration');
-    const story = job.result?.story || await studioCall('/api/engine/story', {
+    const savedStory = job.result?.story;
+    const reuseSavedStory = savedStory && !storyNeedsRegeneration(savedStory);
+    const story = reuseSavedStory ? savedStory : await studioCall('/api/engine/story', {
       topic: topicData.topic,
       title: topicData.title,
       hook: topicData.hook,
       research,
     }, { timeoutMs: 240000, attempts: 5 });
     if (!Array.isArray(story.scenes) || story.scenes.length !== 20) throw new Error('story_must_have_20_scenes');
+    if (storyNeedsRegeneration(story)) throw new Error('story_must_be_in_spanish');
     await persistJobResult(id, { story });
 
     const existingReel = await query('select storyboard from comoasi.reels where id=$1', [reel.id]);
-    const savedScenes = Array.isArray(existingReel.rows[0]?.storyboard) ? existingReel.rows[0].storyboard : [];
+    const savedScenes = reuseSavedStory && Array.isArray(existingReel.rows[0]?.storyboard) ? existingReel.rows[0].storyboard : [];
     const scenes = story.scenes.map((scene, index) => ({
       ...scene,
       index: index + 1,
