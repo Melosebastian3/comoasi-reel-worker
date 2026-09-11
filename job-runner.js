@@ -180,7 +180,12 @@ async function processJob(id) {
     }
 
     await setJobStage(id, 'voice');
-    const voicePath = await createNarrationAudio(workDir, story.narration || scenes.map(scene => scene.narration).join(' '), process.env.TTS_VOICE || 'es-AR-ElenaNeural');
+    const voicePath = await createNarrationAudio(
+      workDir,
+      scenes,
+      process.env.TTS_VOICE || 'es-MX-JorgeNeural',
+      topicData.category
+    );
     const voiceAssetPath = `audio/${reel.id}/voice.mp3`;
     await uploadAsset(voiceAssetPath, voicePath, 'audio/mpeg');
     await persistJobResult(id, { voiceAssetPath });
