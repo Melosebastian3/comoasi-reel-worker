@@ -30,11 +30,35 @@ function safeSubtitle(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function socialSubtitle(text, maxChars = 28) {
+  const words = safeSubtitle(text).split(' ').filter(Boolean);
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && candidate.length > maxChars) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.join('\n');
+}
+
 export async function createNarrationAudio(workDir, narration, voice = 'es-AR-ElenaNeural') {
   const textPath = path.join(workDir, 'narration.txt');
   const voicePath = path.join(workDir, 'voice.mp3');
   await fs.writeFile(textPath, narration, 'utf8');
-  await run('edge-tts', ['--voice', voice, '--rate', '+6%', '-f', textPath, '--write-media', voicePath]);
+  await run('edge-tts', [
+    '--voice', voice,
+    '--rate', '+18%',
+    '--pitch', '+3Hz',
+    '--volume', '+6%',
+    '-f', textPath,
+    '--write-media', voicePath,
+  ]);
   return voicePath;
 }
 
@@ -44,7 +68,7 @@ export async function createSubtitles(workDir, scenes, coverDuration = 0.95, tot
   scenes.forEach((scene, i) => {
     const start = i === 0 ? 0.55 : coverDuration + i * sceneDuration;
     const end = Math.min(totalDuration - 0.05, coverDuration + (i + 1) * sceneDuration);
-    lines.push(String(i + 1), `${srtTime(start)} --> ${srtTime(end)}`, safeSubtitle(scene.narration), '');
+    lines.push(String(i + 1), `${srtTime(start)} --> ${srtTime(end)}`, socialSubtitle(scene.narration), '');
   });
   const srtPath = path.join(workDir, 'captions.srt');
   await fs.writeFile(srtPath, lines.join('\n'), 'utf8');
@@ -100,7 +124,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   await fs.writeFile(concatFile, parts.join('\n'), 'utf8');
 
   const visualOnly = path.join(workDir, 'visual.mp4');
-  const videoFilter = `scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,fps=30,subtitles=${subtitles}:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000,BorderStyle=3,Outline=2,Shadow=0,MarginV=80,Alignment=2'`;
+  const videoFilter = `scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,fps=30,subtitles=${subtitles}:force_style='FontName=DejaVu Sans,FontSize=28,PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000,BorderStyle=3,Outline=2,Shadow=0,MarginV=105,Alignment=2'`;
   await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concatFile, '-t', '60', '-vf', videoFilter, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '29', '-pix_fmt', 'yuv420p', '-an', visualOnly]);
 
   const finalPath = path.join(workDir, 'final.mp4');
