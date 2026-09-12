@@ -166,38 +166,45 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   if (lines.length === 0) throw new Error('narration_required');
 
   const blocks = [];
-  for (let index = 0; index < lines.length; index += 2) {
-    const pair = lines.slice(index, index + 2);
-    const lead = pair[0];
+  for (let index = 0; index < lines.length;) {
+    const lead = lines[index];
+    const nextLine = lines[index + 1];
+    // Solo agrupamos dos escenas cuando comparten intención. Los golpes, la
+    // incredulidad y los remates quedan aislados para que la voz pueda actuar.
+    const canPair = Boolean(
+      nextLine &&
+      lead.delivery === nextLine.delivery &&
+      !['golpe', 'incredula', 'remate'].includes(lead.delivery)
+    );
+    const group = canPair ? [lead, nextLine] : [lead];
     const isFirst = index === 0;
-    const isLast = index + 2 >= lines.length;
+    const isLast = index + group.length >= lines.length;
     blocks.push({
-      text: pair.map(line => performLine(line.text, line.delivery)).join(' '),
-      // La intención de apertura y cierre manda; en el medio conservamos la intención
-      // de la primera frase para que no se pierda el ataque al agrupar dos escenas.
+      text: group.map(line => performLine(line.text, line.delivery)).join(' '),
       delivery: isFirst ? 'golpe' : isLast ? 'remate' : lead.delivery,
     });
+    index += group.length;
   }
 
   const profile = categoryProfile(category);
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: 10 + tensionLift, pitch: 5, volume: 9 },
-    veneno: { rate: 2 + tensionLift, pitch: 1, volume: 6 },
-    suspenso: { rate: -6 + tensionLift, pitch: -3, volume: 5 },
-    incredula: { rate: 7 + tensionLift, pitch: 7, volume: 8 },
-    remate: { rate: 0 + tensionLift, pitch: -1, volume: 9 },
+    golpe: { rate: 7 + tensionLift, pitch: 8, volume: 12 },
+    veneno: { rate: -3 + tensionLift, pitch: 2, volume: 8 },
+    suspenso: { rate: -12 + tensionLift, pitch: -4, volume: 6 },
+    incredula: { rate: 4 + tensionLift, pitch: 10, volume: 11 },
+    remate: { rate: -4 + tensionLift, pitch: -2, volume: 12 },
   };
 
   const pauseAfter = (block, index) => {
     if (index === blocks.length - 1) return 0;
-    if (index === 0) return 0.30;
-    if (block.delivery === 'suspenso') return 0.44;
-    if (block.delivery === 'remate') return 0.34;
-    if (block.delivery === 'incredula') return 0.29;
-    if (block.delivery === 'golpe') return 0.26;
-    return 0.22;
+    if (index === 0) return 0.36;
+    if (block.delivery === 'suspenso') return 0.58;
+    if (block.delivery === 'remate') return 0.42;
+    if (block.delivery === 'incredula') return 0.36;
+    if (block.delivery === 'golpe') return 0.32;
+    return 0.27;
   };
 
   const clipPaths = [];
@@ -365,7 +372,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=140,asplit=2[voice_mix][voice_sc];[2:a]volume=0.34[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.022:ratio=8:attack=12:release=260[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=9:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.09,acompressor=threshold=-15dB:ratio=1.72:attack=10:release=150,asplit=2[voice_mix][voice_sc];[2:a]volume=0.44[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.024:ratio=7:attack=10:release=230[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=10:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
