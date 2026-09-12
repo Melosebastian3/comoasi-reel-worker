@@ -39,6 +39,7 @@ export async function setJobStage(id, stage, extra = {}) {
       returning *`,
     [id, status, stage, progress, JSON.stringify(extra)]
   );
+  console.log(`[como-asi] job ${id} -> ${stage} (${progress}%)`);
   return result.rows[0];
 }
 
