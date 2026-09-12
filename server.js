@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { healthcheckDb, query } from './db.js';
 import { createJob, setJobStage } from './pipeline.js';
-import { recoverJobs, startJob } from './job-runner.js';
+import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 
 const app = express();
@@ -125,7 +125,6 @@ app.post('/api/jobs', async (req, res) => {
 app.post('/api/generate', async (req, res) => {
   const payload = req.body && typeof req.body === 'object' ? req.body : {};
   const job = await createJob({ payload });
-  startJob(job.id);
   res.status(202).json({ jobId: job.id, status: job.status, stage: job.stage, progress: job.progress });
 });
 
@@ -138,7 +137,6 @@ app.get('/api/jobs/:id', async (req, res) => {
 app.post('/api/jobs/:id/retry', async (req, res) => {
   const { rows } = await query(`update comoasi.reel_jobs set status='queued', stage='queued', progress=0, error=null, completed_at=null, updated_at=now() where id=$1 and status='failed' returning *`, [req.params.id]);
   if (!rows[0]) return res.status(409).json({ error: 'job_not_failed_or_not_found' });
-  startJob(req.params.id);
   res.status(202).json(rows[0]);
 });
 
@@ -198,6 +196,7 @@ app.listen(port, async () => {
   try {
     const recovered = await recoverJobs();
     if (recovered) console.log(`[como-asi] recovered ${recovered} queued/running job(s)`);
+    startQueueDispatcher(5000);
   } catch (error) {
     console.error('[como-asi] recovery scan failed', error);
   }
