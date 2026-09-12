@@ -1,20 +1,34 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { EdgeTTS } from '@travisvn/edge-tts';
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], ...options });
+    const { timeoutMs = 0, ...spawnOptions } = options;
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], ...spawnOptions });
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    let timeout;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      callback(value);
+    };
     child.stdout?.on('data', chunk => { stdout += chunk.toString(); });
     child.stderr?.on('data', chunk => { stderr += chunk.toString(); });
-    child.on('error', reject);
+    child.on('error', error => finish(reject, error));
     child.on('close', code => {
-      if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(`${command} exited ${code}: ${stderr.slice(-4000)}`));
+      if (code === 0) finish(resolve, { stdout, stderr });
+      else finish(reject, new Error(`${command} exited ${code}: ${stderr.slice(-4000)}`));
     });
+    if (timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        child.kill('SIGKILL');
+        finish(reject, new Error(`${command} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }
   });
 }
 
@@ -22,15 +36,34 @@ function cleanSpeech(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-async function synthesizeEdgeTts(text, voice, style, outputPath) {
-  const tts = new EdgeTTS(text, voice, {
-    rate: `+${style.rate}%`,
-    pitch: `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`,
-    volume: `+${style.volume}%`,
-  });
-  const result = await tts.synthesize();
-  const audioBuffer = Buffer.from(await result.audio.arrayBuffer());
-  await fs.writeFile(outputPath, audioBuffer);
+async function synthesizeEdgeTts(text, voice, style, inputPath, outputPath) {
+  const pitch = `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`;
+  const args = [
+    '-m', 'edge_tts',
+    '--voice', voice,
+    `--rate=+${style.rate}%`,
+    `--pitch=${pitch}`,
+    `--volume=+${style.volume}%`,
+    '--file', inputPath,
+    '--write-media', outputPath,
+  ];
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    console.log(`[como-asi] voice block started (attempt ${attempt}, ${text.length} chars)`);
+    try {
+      await run('python3', args, { timeoutMs: 90000 });
+      const stat = await fs.stat(outputPath);
+      if (stat.size < 1000) throw new Error('voice_block_empty');
+      console.log(`[como-asi] voice block completed (${stat.size} bytes)`);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[como-asi] voice block attempt ${attempt} failed`, error instanceof Error ? error.message : String(error));
+      await fs.rm(outputPath, { force: true }).catch(() => {});
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+    }
+  }
+  throw lastError || new Error('voice_block_failed');
 }
 
 async function probeDuration(filePath) {
@@ -122,7 +155,7 @@ function performLine(text, delivery) {
   return `${clean}.`;
 }
 
-export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-DaliaNeural', category = 'actualidad') {
+export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-DaliaNeural', category = 'actualidad', onBlockProgress = null) {
   const lines = Array.isArray(scenesOrNarration)
     ? scenesOrNarration
       .map(scene => ({ text: cleanSpeech(scene?.narration), delivery: normalizeDelivery(scene?.delivery) }))
@@ -158,8 +191,9 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
     const block = blocks[index];
     const style = deliveryStyles[block.delivery] || deliveryStyles.veneno;
     await fs.writeFile(textPath, block.text, 'utf8');
-    await synthesizeEdgeTts(block.text, voice, style, clipPath);
+    await synthesizeEdgeTts(block.text, voice, style, textPath, clipPath);
     clipPaths.push(clipPath);
+    if (typeof onBlockProgress === 'function') await onBlockProgress(index + 1, blocks.length);
   }
 
   const concatFile = path.join(workDir, 'voice-parts.txt');
