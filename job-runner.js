@@ -12,14 +12,52 @@ function normalizeTopic(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+const validDeliveries = new Set(['golpe', 'veneno', 'suspenso', 'incredula', 'remate']);
+
+function normalizeDelivery(value, index) {
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  if (validDeliveries.has(normalized)) return normalized;
+  if (/incredul|sorpresa|asombro/.test(normalized)) return 'incredula';
+  if (/veneno|sarcas|ironi/.test(normalized)) return 'veneno';
+  if (/suspenso|tension|pausa/.test(normalized)) return 'suspenso';
+  if (/remate|cierre|punch/.test(normalized)) return 'remate';
+  return index === 19 ? 'remate' : index % 4 === 0 ? 'golpe' : index % 4 === 1 ? 'suspenso' : index % 4 === 2 ? 'veneno' : 'incredula';
+}
+
+function normalizeStory(story) {
+  if (!story || !Array.isArray(story.scenes)) return story;
+  return {
+    ...story,
+    scenes: story.scenes.map((scene, index) => ({
+      ...scene,
+      delivery: normalizeDelivery(scene?.delivery, index),
+    })),
+  };
+}
+
+function storyLanguageStats(story) {
+  const narration = Array.isArray(story?.scenes)
+    ? story.scenes.map(scene => String(scene?.narration || '')).join(' ')
+    : '';
+  const englishSignals = narration.match(/\b(the|this|that|but|with|they|their|what|are|was|were|using|would|because|people|some|others|gets|paid|watch|buy|models|brand|sales|haven't|isn't|don't)\b/gi) || [];
+  const spanishSignals = narration.match(/\b(el|la|los|las|esto|pero|con|que|por|para|una|un|es|son|esta|estas|este|está|están|porque|gente|marca|ventas|como|cuando|quien|ahora|hasta|nada|todo|dijo|hizo)\b/gi) || [];
+  return { english: englishSignals.length, spanish: spanishSignals.length, sample: narration.slice(0, 220) };
+}
+
+function storyValidationIssue(story) {
+  if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 20) return 'scene_shape';
+  if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '')))) return 'delivery';
+  const stats = storyLanguageStats(story);
+  if (stats.english >= 6 && stats.english > Math.max(5, Math.ceil(stats.spanish * 0.55))) return 'language';
+  return null;
+}
+
 function storyNeedsRegeneration(story) {
-  if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 20) return true;
-  const validDeliveries = new Set(['golpe', 'veneno', 'suspenso', 'incredula', 'remate']);
-  if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '').toLowerCase()))) return true;
-  const narration = story.scenes.map(scene => String(scene?.narration || '')).join(' ');
-  const englishSignals = narration.match(/\b(the|this|that|but|with|they|their|what|is|are|was|were|using|would|because|people|some|others|hard|easy|gets|paid|watch|buy|models|brand|sales|haven't|isn't|don't)\b/gi) || [];
-  const spanishSignals = narration.match(/\b(el|la|los|las|esto|pero|con|que|por|para|una|un|es|son|está|están|porque|gente|marca|ventas|comprarías)\b/gi) || [];
-  return englishSignals.length > Math.max(3, Math.ceil(spanishSignals.length * 0.35));
+  return Boolean(storyValidationIssue(normalizeStory(story)));
 }
 
 async function downloadTo(url, filePath) {
@@ -172,17 +210,29 @@ async function processJob(id) {
     await query(`update comoasi.reels set research=$2::jsonb, status='generating', updated_at=now() where id=$1`, [reel.id, JSON.stringify(research)]);
 
     await setJobStage(id, 'narration');
-    const savedStory = job.result?.story;
-    const reuseSavedStory = savedStory && !storyNeedsRegeneration(savedStory);
-    const story = reuseSavedStory ? savedStory : await studioCall('/api/engine/story', {
-      topic: topicData.topic,
-      title: topicData.title,
-      hook: topicData.hook,
-      protagonist: topicData.protagonist,
-      research,
-    }, { timeoutMs: 240000, attempts: 5 });
-    if (!Array.isArray(story.scenes) || story.scenes.length !== 20) throw new Error('story_must_have_20_scenes');
-    if (storyNeedsRegeneration(story)) throw new Error('story_must_be_in_spanish');
+    const savedStory = normalizeStory(job.result?.story);
+    let story = savedStory && !storyNeedsRegeneration(savedStory) ? savedStory : null;
+    const reuseSavedStory = Boolean(story);
+    if (!story) {
+      for (let storyAttempt = 1; storyAttempt <= 3; storyAttempt += 1) {
+        const candidate = normalizeStory(await studioCall('/api/engine/story', {
+          topic: topicData.topic,
+          title: topicData.title,
+          hook: topicData.hook,
+          protagonist: topicData.protagonist,
+          research,
+          strictSpanish: storyAttempt > 1,
+        }, { timeoutMs: 240000, attempts: 5 }));
+        const issue = storyValidationIssue(candidate);
+        if (!issue) {
+          story = candidate;
+          break;
+        }
+        const stats = storyLanguageStats(candidate);
+        console.warn(`[como-asi] story validation rejected attempt ${storyAttempt}`, { issue, english: stats.english, spanish: stats.spanish, sample: stats.sample });
+      }
+    }
+    if (!story) throw new Error('story_validation_failed_after_3_attempts');
     await persistJobResult(id, { story });
 
     const existingReel = await query('select storyboard from comoasi.reels where id=$1', [reel.id]);
