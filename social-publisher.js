@@ -36,44 +36,46 @@ const open = value => {
 };
 
 export async function ensurePublisherSchema() {
-  await query(`create table if not exists comoasi.social_connections(
-    network text primary key,
-    account_id text,
-    account_label text,
-    access_token_enc text not null,
-    refresh_token_enc text,
-    expires_at timestamptz,
-    metadata jsonb not null default '{}'::jsonb,
-    connected_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-  )`);
-  await query("alter table comoasi.publishing_queue add column if not exists status text not null default 'queued'");
-  await query('alter table comoasi.publishing_queue add column if not exists started_at timestamptz');
-  await query('alter table comoasi.publishing_queue add column if not exists completed_at timestamptz');
-  await query('alter table comoasi.publishing_queue add column if not exists external_id text');
-  await query('alter table comoasi.publishing_queue add column if not exists error text');
-  await query('alter table comoasi.publishing_queue add column if not exists updated_at timestamptz not null default now()');
+  await query('select 1 from comoasi.app_settings limit 1');
+  await query('select 1 from comoasi.publishing_queue limit 1');
 }
 
+const connectionKey = network => 'social_connection_' + network;
+const parseSetting = value => {
+  if (value && typeof value === 'object') return value;
+  try { return JSON.parse(String(value || '{}')); } catch { return {}; }
+};
+
 async function connection(network) {
-  const { rows } = await query('select * from comoasi.social_connections where network=$1', [network]);
+  const { rows } = await query('select value, updated_at from comoasi.app_settings where key=$1', [connectionKey(network)]);
   if (!rows[0]) return null;
-  return { ...rows[0], accessToken: open(rows[0].access_token_enc), refreshToken: open(rows[0].refresh_token_enc) };
+  const saved = parseSetting(rows[0].value);
+  return {
+    network,
+    account_id: saved.accountId || null,
+    account_label: saved.accountLabel || null,
+    accessToken: open(saved.accessTokenEnc),
+    refreshToken: open(saved.refreshTokenEnc),
+    expires_at: saved.expiresAt || null,
+    metadata: saved.metadata || {},
+    connected_at: saved.connectedAt || rows[0].updated_at,
+  };
 }
 
 export async function socialStatus() {
   await ensurePublisherSchema();
-  const { rows } = await query('select network, account_id, account_label, expires_at, connected_at, metadata from comoasi.social_connections');
-  const byNetwork = new Map(rows.map(row => [row.network, row]));
+  const keys = networks.map(connectionKey);
+  const { rows } = await query('select key, value, updated_at from comoasi.app_settings where key = any($1::text[])', [keys]);
+  const byNetwork = new Map(rows.map(row => [String(row.key).replace(/^social_connection_/, ''), { ...parseSetting(row.value), updatedAt: row.updated_at }]));
   return networks.map(network => {
     const row = byNetwork.get(network);
     return {
       network,
       configured: configured(network),
-      connected: Boolean(row),
-      accountId: row?.account_id || null,
-      accountLabel: row?.account_label || null,
-      connectedAt: row?.connected_at || null,
+      connected: Boolean(row?.accessTokenEnc),
+      accountId: row?.accountId || null,
+      accountLabel: row?.accountLabel || null,
+      connectedAt: row?.connectedAt || row?.updatedAt || null,
       review: network === 'tiktok' && process.env.TIKTOK_AUDITED !== 'true' ? 'audit_required_for_public_posts' : network === 'youtube' && process.env.YOUTUBE_API_AUDITED !== 'true' ? 'audit_required_for_public_posts' : null,
       missing: configured(network) ? [] : requiredEnv[network].filter(name => !clean(process.env[name])),
     };
@@ -190,19 +192,24 @@ export async function finishConnection(input) {
   const profile = await accountProfile(network, token);
   const expiresAt = new Date(Date.now() + Math.max(60, token.expiresIn || 3600) * 1000).toISOString();
   await ensurePublisherSchema();
-  await query(`insert into comoasi.social_connections(network, account_id, account_label, access_token_enc, refresh_token_enc, expires_at, metadata)
-    values($1,$2,$3,$4,$5,$6,$7::jsonb)
-    on conflict(network) do update set account_id=excluded.account_id, account_label=excluded.account_label, access_token_enc=excluded.access_token_enc,
-      refresh_token_enc=case when excluded.refresh_token_enc is null then comoasi.social_connections.refresh_token_enc else excluded.refresh_token_enc end,
-      expires_at=excluded.expires_at, metadata=excluded.metadata, connected_at=now(), updated_at=now()`,
-    [network, profile.id, profile.label, seal(token.accessToken), seal(token.refreshToken) || null, expiresAt, JSON.stringify({ provider: network })]);
+  const saved = {
+    accountId: profile.id,
+    accountLabel: profile.label,
+    accessTokenEnc: seal(token.accessToken),
+    refreshTokenEnc: seal(token.refreshToken) || null,
+    expiresAt,
+    metadata: { provider: network },
+    connectedAt: new Date().toISOString(),
+  };
+  await query(`insert into comoasi.app_settings(key, value) values($1,$2::jsonb)
+    on conflict(key) do update set value=excluded.value, updated_at=now()`, [connectionKey(network), JSON.stringify(saved)]);
   return { network, connected: true, accountId: profile.id, accountLabel: profile.label };
 }
 
 export async function disconnectSocial(network) {
   if (!networks.includes(network)) throw new Error('unsupported_network');
   await ensurePublisherSchema();
-  await query('delete from comoasi.social_connections where network=$1', [network]);
+  await query('delete from comoasi.app_settings where key=$1', [connectionKey(network)]);
   return { network, connected: false };
 }
 
@@ -238,7 +245,16 @@ async function refreshedConnection(network) {
   const accessToken = token.access_token;
   const refreshToken = token.refresh_token || row.refreshToken;
   const expiresAt = new Date(Date.now() + Number(token.expires_in || 3600) * 1000).toISOString();
-  await query('update comoasi.social_connections set access_token_enc=$2, refresh_token_enc=$3, expires_at=$4, updated_at=now() where network=$1', [network, seal(accessToken), seal(refreshToken), expiresAt]);
+  const saved = {
+    accountId: row.account_id,
+    accountLabel: row.account_label,
+    accessTokenEnc: seal(accessToken),
+    refreshTokenEnc: seal(refreshToken),
+    expiresAt,
+    metadata: row.metadata || {},
+    connectedAt: row.connected_at || new Date().toISOString(),
+  };
+  await query('update comoasi.app_settings set value=$2::jsonb, updated_at=now() where key=$1', [connectionKey(network), JSON.stringify(saved)]);
   return { ...row, accessToken, refreshToken, expires_at: expiresAt };
 }
 
@@ -320,14 +336,14 @@ async function dispatchPublisherQueue() {
   try {
     const { rows } = await query(`select * from comoasi.publishing_queue where status='queued' and scheduled_at<=now() order by scheduled_at asc limit 3`);
     for (const row of rows) {
-      const claimed = await query(`update comoasi.publishing_queue set status='publishing', started_at=now(), updated_at=now(), error=null where id=$1 and status='queued' returning *`, [row.id]);
+      const claimed = await query(`update comoasi.publishing_queue set status='publishing', updated_at=now(), error=null where id=$1 and status='queued' returning *`, [row.id]);
       if (!claimed.rows[0]) continue;
       try {
         const externalId = await executeQueueRow(claimed.rows[0]);
-        await query(`update comoasi.publishing_queue set status='published', external_id=$2, completed_at=now(), updated_at=now() where id=$1`, [row.id, externalId]);
+        await query(`update comoasi.publishing_queue set status='published', external_post_id=$2, updated_at=now() where id=$1`, [row.id, externalId]);
       } catch (error) {
         const message = String(error?.message || error).slice(0, 500);
-        await query(`update comoasi.publishing_queue set status='failed', error=$2, completed_at=now(), updated_at=now() where id=$1`, [row.id, message]);
+        await query(`update comoasi.publishing_queue set status='failed', error=$2, updated_at=now() where id=$1`, [row.id, message]);
         console.error('[como-asi] social publish failed', row.platform, row.id, message);
       }
     }
