@@ -4,6 +4,7 @@ import { healthcheckDb, query } from './db.js';
 import { createJob, setJobStage } from './pipeline.js';
 import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
+import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -107,7 +108,7 @@ app.post('/api/radar/snapshots', async (req, res) => {
        strategy=excluded.strategy, category_scores=excluded.category_scores, signals=excluded.signals,
        top_posts=excluded.top_posts, raw_data=excluded.raw_data
      returning *`,
-    [date, b.source || 'metricool', JSON.stringify(b.strategy || {}), JSON.stringify(b.categoryScores || {}), JSON.stringify(b.signals || {}), JSON.stringify(b.topPosts || []), JSON.stringify(b.rawData || {})]
+    [date, b.source || 'native-social', JSON.stringify(b.strategy || {}), JSON.stringify(b.categoryScores || {}), JSON.stringify(b.signals || {}), JSON.stringify(b.topPosts || []), JSON.stringify(b.rawData || {})]
   );
   res.status(201).json(rows[0]);
 });
@@ -182,6 +183,50 @@ app.post('/api/publisher/queue', async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
+app.get('/api/social/status', async (_req, res) => {
+  res.json({ networks: await socialStatus() });
+});
+
+app.post('/api/social/connect', async (req, res) => {
+  try {
+    const authorizationUrlValue = authorizationUrl(req.body || {});
+    res.json({ authorizationUrl: authorizationUrlValue });
+  } catch (error) {
+    const status = error?.message === 'developer_credentials_required' ? 503 : 400;
+    res.status(status).json({ error: error?.message || 'social_connect_failed', missing: error?.missing || [] });
+  }
+});
+
+app.post('/api/social/callback', async (req, res) => {
+  try {
+    res.json(await finishConnection(req.body || {}));
+  } catch (error) {
+    res.status(502).json({ error: error?.message || 'social_oauth_failed' });
+  }
+});
+
+app.post('/api/social/disconnect', async (req, res) => {
+  try {
+    res.json(await disconnectSocial(String(req.body?.network || '')));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || 'social_disconnect_failed' });
+  }
+});
+
+app.post('/api/social/publish-all', async (req, res) => {
+  try {
+    const jobs = await queuePublishAll({
+      reelId: req.body?.reelId,
+      selectedNetworks: req.body?.networks,
+      scheduledAt: req.body?.scheduledAt,
+    });
+    res.status(202).json({ ok: true, jobs });
+  } catch (error) {
+    const status = error?.message === 'social_accounts_not_ready' ? 409 : 400;
+    res.status(status).json({ error: error?.message || 'publish_failed', blocked: error?.blocked || [] });
+  }
+});
+
 app.get('/api/runtime-id', (_req, res) => {
   res.json({ project: projectKey, runtimeId: crypto.randomUUID(), time: new Date().toISOString() });
 });
@@ -197,6 +242,7 @@ app.listen(port, async () => {
     const recovered = await recoverJobs();
     if (recovered) console.log(`[como-asi] recovered ${recovered} queued/running job(s)`);
     startQueueDispatcher(5000);
+    startPublisherDispatcher(10000);
   } catch (error) {
     console.error('[como-asi] recovery scan failed', error);
   }
