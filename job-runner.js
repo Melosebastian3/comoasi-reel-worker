@@ -25,7 +25,7 @@ function normalizeDelivery(value, index) {
   if (/veneno|sarcas|ironi/.test(normalized)) return 'veneno';
   if (/suspenso|tension|pausa/.test(normalized)) return 'suspenso';
   if (/remate|cierre|punch/.test(normalized)) return 'remate';
-  return index === 19 ? 'remate' : index % 4 === 0 ? 'golpe' : index % 4 === 1 ? 'suspenso' : index % 4 === 2 ? 'veneno' : 'incredula';
+  return index === 15 ? 'remate' : index % 4 === 0 ? 'golpe' : index % 4 === 1 ? 'suspenso' : index % 4 === 2 ? 'veneno' : 'incredula';
 }
 
 function normalizeStory(story) {
@@ -49,7 +49,7 @@ function storyLanguageStats(story) {
 }
 
 function storyValidationIssue(story) {
-  if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 20) return 'scene_shape';
+  if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 16) return 'scene_shape';
   if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '')))) return 'delivery';
   const stats = storyLanguageStats(story);
   if (stats.english >= 6 && stats.english > Math.max(5, Math.ceil(stats.spanish * 0.55))) return 'language';
@@ -244,7 +244,7 @@ async function processJob(id) {
     }));
 
     await query(
-      `update comoasi.reels set title=$2, hook=$3, narration=$4, storyboard=$5::jsonb, scene_count=20, updated_at=now() where id=$1`,
+      `update comoasi.reels set title=$2, hook=$3, narration=$4, storyboard=$5::jsonb, scene_count=16, updated_at=now() where id=$1`,
       [reel.id, story.title || topicData.title, story.hook || topicData.hook, story.narration || '', JSON.stringify(scenes)]
     );
 
