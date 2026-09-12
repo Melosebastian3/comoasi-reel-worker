@@ -152,7 +152,7 @@ function normalizeDelivery(value) {
 
 function performLine(text, delivery) {
   const clean = cleanSpeech(text).replace(/[.!?…]+$/u, '');
-  if (delivery === 'suspenso' || delivery === 'veneno') return `${clean}...`;
+  if (delivery === 'suspenso') return `${clean}...`;
   if (delivery === 'golpe' || delivery === 'incredula') return `¡${clean}!`;
   return `${clean}.`;
 }
@@ -166,22 +166,24 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   if (lines.length === 0) throw new Error('narration_required');
 
   const blocks = [];
-  for (let index = 0; index < lines.length;) {
-    const lead = lines[index];
-    const nextLine = lines[index + 1];
-    // Solo agrupamos dos escenas cuando comparten intención. Los golpes, la
-    // incredulidad y los remates quedan aislados para que la voz pueda actuar.
-    const canPair = Boolean(
-      nextLine &&
-      lead.delivery === nextLine.delivery &&
-      !['golpe', 'incredula', 'remate'].includes(lead.delivery)
-    );
-    const group = canPair ? [lead, nextLine] : [lead];
+  const actSizes = [2, 3, 3, 3, 3, 2];
+  for (let index = 0, actIndex = 0; index < lines.length; actIndex += 1) {
+    const size = Math.min(actSizes[actIndex] || 3, lines.length - index);
+    const group = lines.slice(index, index + size);
     const isFirst = index === 0;
     const isLast = index + group.length >= lines.length;
+    const delivery = isFirst
+      ? 'golpe'
+      : isLast
+        ? 'remate'
+        : group.some(line => line.delivery === 'suspenso')
+          ? 'suspenso'
+          : group.some(line => line.delivery === 'incredula')
+            ? 'incredula'
+            : group[0].delivery;
     blocks.push({
       text: group.map(line => performLine(line.text, line.delivery)).join(' '),
-      delivery: isFirst ? 'golpe' : isLast ? 'remate' : lead.delivery,
+      delivery,
     });
     index += group.length;
   }
@@ -190,21 +192,21 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: 7 + tensionLift, pitch: 8, volume: 12 },
-    veneno: { rate: -3 + tensionLift, pitch: 2, volume: 8 },
-    suspenso: { rate: -12 + tensionLift, pitch: -4, volume: 6 },
-    incredula: { rate: 4 + tensionLift, pitch: 10, volume: 11 },
-    remate: { rate: -4 + tensionLift, pitch: -2, volume: 12 },
+    golpe: { rate: 1 + tensionLift, pitch: 7, volume: 12 },
+    veneno: { rate: -9 + tensionLift, pitch: 1, volume: 8 },
+    suspenso: { rate: -18 + tensionLift, pitch: -5, volume: 6 },
+    incredula: { rate: -2 + tensionLift, pitch: 9, volume: 11 },
+    remate: { rate: -11 + tensionLift, pitch: -2, volume: 12 },
   };
 
   const pauseAfter = (block, index) => {
     if (index === blocks.length - 1) return 0;
-    if (index === 0) return 0.36;
-    if (block.delivery === 'suspenso') return 0.58;
-    if (block.delivery === 'remate') return 0.42;
-    if (block.delivery === 'incredula') return 0.36;
-    if (block.delivery === 'golpe') return 0.32;
-    return 0.27;
+    if (index === 0) return 0.48;
+    if (block.delivery === 'suspenso') return 0.78;
+    if (block.delivery === 'remate') return 0.58;
+    if (block.delivery === 'incredula') return 0.50;
+    if (block.delivery === 'golpe') return 0.44;
+    return 0.38;
   };
 
   const clipPaths = [];
@@ -347,38 +349,47 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
 }
 
 export async function renderReel({ workDir, coverPath, scenePaths, scenes, narrationPath, category, title, coverDeck }) {
-  const totalDuration = 60;
-  const coverDuration = 0.95;
-  const sceneDuration = (totalDuration - coverDuration) / scenePaths.length;
+  const narrationDuration = await probeDuration(narrationPath);
+  const totalDuration = Math.max(45, Math.min(55, Math.ceil((narrationDuration || 49) + 1.1)));
+  const coverDuration = 0.65;
+  const visualDuration = totalDuration - coverDuration;
+  const rawWeights = scenes.map(scene => {
+    const requested = Number(scene?.durationSeconds);
+    if (Number.isFinite(requested) && requested > 0) return Math.max(1.8, Math.min(4.2, requested));
+    const words = cleanSpeech(scene?.narration).split(/\s+/).filter(Boolean).length;
+    return Math.max(1.8, Math.min(4.2, 0.75 + words * 0.34));
+  });
+  const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0) || scenePaths.length;
+  const sceneDurations = rawWeights.map(value => visualDuration * value / weightTotal);
   const framedCover = await createCoverFrame(workDir, coverPath, title, coverDeck);
   const music = await createProceduralMusic(workDir, category, totalDuration, `${title}|${coverDeck}`);
   const concatFile = path.join(workDir, 'visuals.txt');
   const parts = [`file '${framedCover.replaceAll("'", "'\\''")}'`, `duration ${coverDuration.toFixed(4)}`];
-  for (const scenePath of scenePaths) {
-    parts.push(`file '${scenePath.replaceAll("'", "'\\''")}'`, `duration ${sceneDuration.toFixed(4)}`);
+  for (let index = 0; index < scenePaths.length; index += 1) {
+    const scenePath = scenePaths[index];
+    parts.push(`file '${scenePath.replaceAll("'", "'\\''")}'`, `duration ${sceneDurations[index].toFixed(4)}`);
   }
   parts.push(`file '${scenePaths.at(-1).replaceAll("'", "'\\''")}'`);
   await fs.writeFile(concatFile, parts.join('\n'), 'utf8');
 
   const visualOnly = path.join(workDir, 'visual.mp4');
-  const videoFilter = 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,fps=30';
-  await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concatFile, '-t', '60', '-vf', videoFilter, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '29', '-pix_fmt', 'yuv420p', '-an', visualOnly]);
+  const videoFilter = "scale=820:1458,crop=720:1280:x='50+48*sin(t*0.67)':y='89+82*cos(t*0.49)',setsar=1,fps=30";
+  await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concatFile, '-t', String(totalDuration), '-vf', videoFilter, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-pix_fmt', 'yuv420p', '-an', visualOnly]);
 
-  const narrationDuration = await probeDuration(narrationPath);
-  const narrationTarget = totalDuration - 0.25;
+  const narrationTarget = totalDuration - 0.45;
   const narrationTempo = narrationDuration && narrationDuration > narrationTarget
-    ? narrationDuration / narrationTarget
+    ? Math.min(1.06, narrationDuration / narrationTarget)
     : 1;
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.09,acompressor=threshold=-15dB:ratio=1.72:attack=10:release=150,asplit=2[voice_mix][voice_sc];[2:a]volume=0.44[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.024:ratio=7:attack=10:release=230[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=10:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]volume=0.52[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=8.5:attack=8:release=320[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
     '-y', '-i', visualOnly, '-i', narrationPath, '-i', music,
     '-filter_complex', audioFilter,
-    '-map', '0:v:0', '-map', '[a]', '-t', '60', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '112k', '-ar', '48000', '-movflags', '+faststart', finalPath,
+    '-map', '0:v:0', '-map', '[a]', '-t', String(totalDuration), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '112k', '-ar', '48000', '-movflags', '+faststart', finalPath,
   ]);
 
   const stat = await fs.stat(finalPath);
