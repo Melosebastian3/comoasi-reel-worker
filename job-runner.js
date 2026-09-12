@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { query } from './db.js';
-import { failJob, setJobStage } from './pipeline.js';
+import { failJob, setJobProgress, setJobStage } from './pipeline.js';
 import { getAssetUrl, studioCall, uploadAsset, writeBase64File } from './engine.js';
 import { createNarrationAudio, renderReel } from './render.js';
 
@@ -207,7 +207,8 @@ async function processJob(id) {
       scenes[index].assetPath = sceneResult.assetPath;
       scenePaths.push(sceneResult.localPath);
       await query('update comoasi.reels set storyboard=$2::jsonb, updated_at=now() where id=$1', [reel.id, JSON.stringify(scenes)]);
-      await persistJobResult(id, { scenesCompleted: index + 1, reusedScenes });
+      const sceneProgress = 48 + Math.round(((index + 1) / scenes.length) * 24);
+      await setJobProgress(id, 'scenes', sceneProgress, { scenesCompleted: index + 1, reusedScenes });
     }
 
     await setJobStage(id, 'voice');
@@ -285,6 +286,39 @@ async function processJob(id) {
 
 export function startJob(id) {
   processJob(String(id)).catch(jobError => console.error('[como-asi] background job crash', id, jobError));
+}
+
+async function dispatchQueuedJobs() {
+  const { rows } = await query(
+    `select id from comoasi.reel_jobs
+      where status='queued'
+      order by created_at asc
+      limit 2`
+  );
+  rows.forEach(row => startJob(row.id));
+  return rows.length;
+}
+
+let dispatcherTimer = null;
+let dispatcherBusy = false;
+
+export function startQueueDispatcher(intervalMs = 5000) {
+  if (dispatcherTimer) return;
+  const tick = async () => {
+    if (dispatcherBusy) return;
+    dispatcherBusy = true;
+    try {
+      await dispatchQueuedJobs();
+    } catch (error) {
+      console.error('[como-asi] queue dispatcher failed', error);
+    } finally {
+      dispatcherBusy = false;
+    }
+  };
+  void tick();
+  dispatcherTimer = setInterval(tick, intervalMs);
+  dispatcherTimer.unref?.();
+  console.log(`[como-asi] durable queue dispatcher active every ${intervalMs}ms`);
 }
 
 export async function recoverJobs() {
