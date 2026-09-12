@@ -6,7 +6,7 @@ const STAGES = [
   ['research', 18],
   ['narration', 32],
   ['storyboard', 45],
-  ['scenes', 72],
+  ['scenes', 48],
   ['voice', 80],
   ['cover', 87],
   ['render', 94],
@@ -39,6 +39,22 @@ export async function setJobStage(id, stage, extra = {}) {
       returning *`,
     [id, status, stage, progress, JSON.stringify(extra)]
   );
+  return result.rows[0];
+}
+
+export async function setJobProgress(id, stage, progress, extra = {}) {
+  const safeProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+  const result = await query(
+    `update comoasi.reel_jobs
+        set status='running', stage=$2, progress=$3,
+            started_at=coalesce(started_at, now()),
+            result=result || $4::jsonb,
+            updated_at=now()
+      where id=$1
+      returning *`,
+    [id, stage, safeProgress, JSON.stringify(extra)]
+  );
+  console.log(`[como-asi] job ${id} -> ${stage} (${safeProgress}%)`);
   return result.rows[0];
 }
 
