@@ -216,7 +216,14 @@ async function processJob(id) {
       workDir,
       scenes,
       process.env.TTS_VOICE || 'es-MX-DaliaNeural',
-      topicData.category
+      topicData.category,
+      async (completed, total) => {
+        const voiceProgress = 80 + Math.min(6, Math.round((completed / total) * 6));
+        await setJobProgress(id, 'voice', voiceProgress, {
+          voiceBlocksCompleted: completed,
+          voiceBlocksTotal: total,
+        });
+      }
     );
     const voiceAssetPath = `audio/${reel.id}/voice.mp3`;
     await uploadAsset(voiceAssetPath, voicePath, 'audio/mpeg');
