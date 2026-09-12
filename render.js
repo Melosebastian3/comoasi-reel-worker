@@ -106,9 +106,9 @@ function hashString(value) {
 function categoryProfile(category) {
   const key = String(category || '').toLowerCase();
   const profiles = {
-    actualidad: { bpm: 112, rootMidi: 45, progression: [0, 5, 3, 7], brightness: 0.45, tension: 0.62 },
-    famosos: { bpm: 120, rootMidi: 48, progression: [0, 8, 5, 7], brightness: 0.82, tension: 0.34 },
-    chisme_polemica: { bpm: 124, rootMidi: 47, progression: [0, 3, 8, 7], brightness: 0.68, tension: 0.72 },
+    actualidad: { bpm: 114, rootMidi: 45, progression: [0, 5, 3, 7], brightness: 0.45, tension: 0.66 },
+    famosos: { bpm: 122, rootMidi: 48, progression: [0, 8, 5, 7], brightness: 0.84, tension: 0.50 },
+    chisme_polemica: { bpm: 126, rootMidi: 47, progression: [0, 3, 8, 7], brightness: 0.72, tension: 0.82 },
     viral_internet: { bpm: 132, rootMidi: 50, progression: [0, 7, 10, 5], brightness: 0.88, tension: 0.48 },
     internet: { bpm: 132, rootMidi: 50, progression: [0, 7, 10, 5], brightness: 0.88, tension: 0.48 },
     bizarro_wtf: { bpm: 108, rootMidi: 43, progression: [0, 1, 6, 5], brightness: 0.38, tension: 0.9 },
@@ -262,6 +262,7 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
   const bpm = profile.bpm + (seed % 5) - 2;
   const beatSeconds = 60 / bpm;
   const barSeconds = beatSeconds * 4;
+  const phraseSeconds = barSeconds * 4;
   const scale = [0, 3, 5, 7, 10, 12];
   const motif = [0, 2, 4, 1, 3, 5, 2, 4].map((value, index) => scale[(value + ((seed >>> (index % 16)) & 1)) % scale.length]);
   let noiseState = seed;
@@ -282,7 +283,9 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
     const fadeIn = Math.min(1, t / 0.7);
     const fadeOut = Math.min(1, Math.max(0, (duration - t) / 2.5));
     const globalEnv = fadeIn * fadeOut;
-    const sectionLift = t > 45 ? 1.15 : t > 28 ? 1.08 : 1;
+    const sectionLift = t > 45 ? 1.22 : t > 28 ? 1.13 : 1;
+    const phrasePos = t % phraseSeconds;
+    const preRevealDip = phrasePos > phraseSeconds - 0.24 ? 0.58 : 1;
 
     const kickEnv = Math.exp(-beatPos * 12) * ((beatIndex % 4 === 0 || beatIndex % 4 === 2) ? 1 : 0.42);
     const kick = Math.sin(2 * Math.PI * (52 + 35 * (1 - beatPos)) * t) * kickEnv * 0.19;
@@ -309,10 +312,24 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
     const pluck = Math.sin(2 * Math.PI * motifFreq * t) * pluckEnv * (0.025 + profile.brightness * 0.03);
 
     const glitchPulse = profile.tension > 0.75 && ((beatIndex + seed) % 7 === 0)
-      ? Math.sin(2 * Math.PI * (motifFreq * 1.5) * t) * Math.exp(-beatPos * 16) * 0.025
+      ? Math.sin(2 * Math.PI * (motifFreq * 1.5) * t) * Math.exp(-beatPos * 16) * 0.032
       : 0;
 
-    let sample = (kick + snare + hat + bass + pad + pluck + glitchPulse) * globalEnv * sectionLift;
+    // Mini subidas, cortes e impactos cada cuatro compases: acompañan el giro
+    // del chisme y se intensifican en perfiles tensos sin competir con la voz.
+    const riserStart = phraseSeconds - 1.35;
+    const riserProgress = phrasePos > riserStart ? (phrasePos - riserStart) / (phraseSeconds - riserStart) : 0;
+    const riser = noise * (riserProgress ** 2) * (0.012 + profile.tension * 0.042);
+    const impactEnv = t > 1 ? Math.exp(-phrasePos * 7.5) : 0;
+    const impact = (
+      Math.sin(2 * Math.PI * 46 * t) * 0.16 +
+      noise * 0.055
+    ) * impactEnv * (0.55 + profile.tension * 0.65);
+    const dramaStab = profile.tension > 0.6 && beatIndex % 8 === 0
+      ? Math.sin(2 * Math.PI * midiToFreq(root + 12) * t) * Math.exp(-beatPos * 9) * 0.038
+      : 0;
+
+    let sample = (kick + snare + hat + bass + pad + pluck + glitchPulse + riser + impact + dramaStab) * globalEnv * sectionLift * preRevealDip;
     sample = Math.tanh(sample * 1.45) * 0.72;
     const intSample = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
     buffer.writeInt16LE(intSample, 44 + i * 2);
@@ -348,7 +365,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=140,asplit=2[voice_mix][voice_sc];[2:a]volume=0.25[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=7:attack=15:release=220[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=9:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=140,asplit=2[voice_mix][voice_sc];[2:a]volume=0.34[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.022:ratio=8:attack=12:release=260[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=9:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
