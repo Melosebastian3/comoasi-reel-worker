@@ -181,23 +181,23 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
 
   const profile = categoryProfile(category);
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
-  // Menos velocidad artificial y más contraste: ataque, complicidad, pausa y remate.
+  // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: 17 + tensionLift, pitch: 3, volume: 8 },
-    veneno: { rate: 8 + tensionLift, pitch: 0, volume: 6 },
-    suspenso: { rate: 1 + tensionLift, pitch: -2, volume: 5 },
-    incredula: { rate: 14 + tensionLift, pitch: 4, volume: 7 },
-    remate: { rate: 6 + tensionLift, pitch: -2, volume: 8 },
+    golpe: { rate: 10 + tensionLift, pitch: 5, volume: 9 },
+    veneno: { rate: 2 + tensionLift, pitch: 1, volume: 6 },
+    suspenso: { rate: -6 + tensionLift, pitch: -3, volume: 5 },
+    incredula: { rate: 7 + tensionLift, pitch: 7, volume: 8 },
+    remate: { rate: 0 + tensionLift, pitch: -1, volume: 9 },
   };
 
   const pauseAfter = (block, index) => {
     if (index === blocks.length - 1) return 0;
-    if (index === 0) return 0.22;
-    if (block.delivery === 'suspenso') return 0.34;
-    if (block.delivery === 'remate') return 0.27;
-    if (block.delivery === 'incredula') return 0.20;
-    if (block.delivery === 'golpe') return 0.18;
-    return 0.14;
+    if (index === 0) return 0.30;
+    if (block.delivery === 'suspenso') return 0.44;
+    if (block.delivery === 'remate') return 0.34;
+    if (block.delivery === 'incredula') return 0.29;
+    if (block.delivery === 'golpe') return 0.26;
+    return 0.22;
   };
 
   const clipPaths = [];
