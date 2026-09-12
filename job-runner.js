@@ -105,7 +105,7 @@ async function ensureNoHardDuplicate(topicData, force = false) {
   if (rows[0]) throw new Error(`duplicate_topic_blocked:${rows[0].topic}`);
 }
 
-async function obtainSceneImage({ reelId, scene, index, workDir, topic }) {
+async function obtainSceneImage({ reelId, scene, index, workDir, topic, protagonist }) {
   const assetPath = `reels/${reelId}/scenes/scene-${String(index + 1).padStart(2, '0')}.png`;
   const localPath = path.join(workDir, `scene-${String(index + 1).padStart(2, '0')}.png`);
   if (scene.assetPath) {
@@ -121,7 +121,7 @@ async function obtainSceneImage({ reelId, scene, index, workDir, topic }) {
   try {
     generated = await studioCall(
       '/api/engine/image',
-      { topic, visualPrompt: scene.visualPrompt },
+      { topic, protagonist, visualPrompt: scene.visualPrompt },
       { timeoutMs: 240000, attempts: 3 }
     );
   } catch (primaryError) {
@@ -178,6 +178,7 @@ async function processJob(id) {
       topic: topicData.topic,
       title: topicData.title,
       hook: topicData.hook,
+      protagonist: topicData.protagonist,
       research,
     }, { timeoutMs: 240000, attempts: 5 });
     if (!Array.isArray(story.scenes) || story.scenes.length !== 20) throw new Error('story_must_have_20_scenes');
@@ -202,7 +203,7 @@ async function processJob(id) {
     const scenePaths = [];
     let reusedScenes = 0;
     for (let index = 0; index < scenes.length; index += 1) {
-      const sceneResult = await obtainSceneImage({ reelId: reel.id, scene: scenes[index], index, workDir, topic: topicData.topic });
+      const sceneResult = await obtainSceneImage({ reelId: reel.id, scene: scenes[index], index, workDir, topic: topicData.topic, protagonist: topicData.protagonist });
       if (sceneResult.reused) reusedScenes += 1;
       scenes[index].assetPath = sceneResult.assetPath;
       scenePaths.push(sceneResult.localPath);
@@ -240,7 +241,7 @@ async function processJob(id) {
       }
     }
     if (!coverAssetPath) {
-      const cover = await studioCall('/api/engine/cover', { topic: topicData.topic, title: story.title || topicData.title }, { timeoutMs: 240000, attempts: 5 });
+      const cover = await studioCall('/api/engine/cover', { topic: topicData.topic, title: story.title || topicData.title, protagonist: topicData.protagonist }, { timeoutMs: 240000, attempts: 5 });
       await writeBase64File(coverLocal, cover.data);
       coverAssetPath = `covers/${reel.id}/cover.png`;
       await uploadAsset(coverAssetPath, coverLocal, cover.mimeType || 'image/png');
