@@ -37,13 +37,15 @@ function cleanSpeech(text) {
 }
 
 async function synthesizeEdgeTts(text, voice, style, inputPath, outputPath) {
+  const rate = `${style.rate >= 0 ? '+' : ''}${style.rate}%`;
   const pitch = `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`;
+  const volume = `${style.volume >= 0 ? '+' : ''}${style.volume}%`;
   const args = [
     '-m', 'edge_tts',
     '--voice', voice,
-    `--rate=+${style.rate}%`,
+    `--rate=${rate}`,
     `--pitch=${pitch}`,
-    `--volume=+${style.volume}%`,
+    `--volume=${volume}`,
     '--file', inputPath,
     '--write-media', outputPath,
   ];
@@ -155,7 +157,7 @@ function performLine(text, delivery) {
   return `${clean}.`;
 }
 
-export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-DaliaNeural', category = 'actualidad', onBlockProgress = null) {
+export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-CO-SalomeNeural', category = 'actualidad', onBlockProgress = null) {
   const lines = Array.isArray(scenesOrNarration)
     ? scenesOrNarration
       .map(scene => ({ text: cleanSpeech(scene?.narration), delivery: normalizeDelivery(scene?.delivery) }))
@@ -167,21 +169,35 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   for (let index = 0; index < lines.length; index += 2) {
     const pair = lines.slice(index, index + 2);
     const lead = pair[0];
+    const isFirst = index === 0;
+    const isLast = index + 2 >= lines.length;
     blocks.push({
       text: pair.map(line => performLine(line.text, line.delivery)).join(' '),
-      delivery: pair.at(-1)?.delivery || lead.delivery,
+      // La intención de apertura y cierre manda; en el medio conservamos la intención
+      // de la primera frase para que no se pierda el ataque al agrupar dos escenas.
+      delivery: isFirst ? 'golpe' : isLast ? 'remate' : lead.delivery,
     });
   }
 
   const profile = categoryProfile(category);
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
-  // Interpretación de amiga chismosa: contraste fuerte entre ataque, susurro y remate.
+  // Menos velocidad artificial y más contraste: ataque, complicidad, pausa y remate.
   const deliveryStyles = {
-    golpe: { rate: 24 + tensionLift, pitch: 6, volume: 11 },
-    veneno: { rate: 16 + tensionLift, pitch: 2, volume: 9 },
-    suspenso: { rate: 7 + tensionLift, pitch: -3, volume: 8 },
-    incredula: { rate: 22 + tensionLift, pitch: 7, volume: 10 },
-    remate: { rate: 13 + tensionLift, pitch: -4, volume: 11 },
+    golpe: { rate: 17 + tensionLift, pitch: 3, volume: 8 },
+    veneno: { rate: 8 + tensionLift, pitch: 0, volume: 6 },
+    suspenso: { rate: 1 + tensionLift, pitch: -2, volume: 5 },
+    incredula: { rate: 14 + tensionLift, pitch: 4, volume: 7 },
+    remate: { rate: 6 + tensionLift, pitch: -2, volume: 8 },
+  };
+
+  const pauseAfter = (block, index) => {
+    if (index === blocks.length - 1) return 0;
+    if (index === 0) return 0.22;
+    if (block.delivery === 'suspenso') return 0.34;
+    if (block.delivery === 'remate') return 0.27;
+    if (block.delivery === 'incredula') return 0.20;
+    if (block.delivery === 'golpe') return 0.18;
+    return 0.14;
   };
 
   const clipPaths = [];
@@ -196,13 +212,23 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
     if (typeof onBlockProgress === 'function') await onBlockProgress(index + 1, blocks.length);
   }
 
-  const concatFile = path.join(workDir, 'voice-parts.txt');
-  await fs.writeFile(concatFile, clipPaths.map(file => `file '${file.replaceAll("'", "'\\''")}'`).join('\n'), 'utf8');
   const voicePath = path.join(workDir, 'voice.mp3');
+  const inputs = clipPaths.flatMap(file => ['-i', file]);
+  const prepared = clipPaths.map((_, index) => {
+    const pause = pauseAfter(blocks[index], index);
+    const padding = pause > 0 ? `,apad=pad_dur=${pause.toFixed(2)}` : '';
+    return `[${index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono${padding}[part${index}]`;
+  });
+  const labels = clipPaths.map((_, index) => `[part${index}]`).join('');
+  const filter = [
+    ...prepared,
+    `${labels}concat=n=${clipPaths.length}:v=0:a=1,highpass=f=75,lowpass=f=14000,equalizer=f=3500:t=q:w=1:g=-1.5,loudnorm=I=-17:LRA=10:TP=-1.5[voice]`,
+  ].join(';');
   await run('ffmpeg', [
-    '-y', '-f', 'concat', '-safe', '0', '-i', concatFile,
-    '-af', 'highpass=f=80,lowpass=f=12500,acompressor=threshold=-18dB:ratio=2.4:attack=8:release=90,loudnorm=I=-16:LRA=7:TP=-1.5',
-    '-c:a', 'libmp3lame', '-b:a', '96k', voicePath,
+    '-y', ...inputs,
+    '-filter_complex', filter,
+    '-map', '[voice]', '-ar', '48000',
+    '-c:a', 'libmp3lame', '-b:a', '112k', voicePath,
   ]);
   return voicePath;
 }
@@ -322,13 +348,13 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.08,acompressor=threshold=-16dB:ratio=2.2:attack=6:release=70,asplit=2[voice_mix][voice_sc];[2:a]volume=0.25[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=7:attack=15:release=220[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=8:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=100|100,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=140,asplit=2[voice_mix][voice_sc];[2:a]volume=0.25[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=7:attack=15:release=220[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=9:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
     '-y', '-i', visualOnly, '-i', narrationPath, '-i', music,
     '-filter_complex', audioFilter,
-    '-map', '0:v:0', '-map', '[a]', '-t', '60', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', finalPath,
+    '-map', '0:v:0', '-map', '[a]', '-t', '60', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '112k', '-ar', '48000', '-movflags', '+faststart', finalPath,
   ]);
 
   const stat = await fs.stat(finalPath);
