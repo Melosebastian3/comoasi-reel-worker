@@ -388,18 +388,55 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const sceneDurations = rawWeights.map(value => visualDuration * value / weightTotal);
   const framedCover = await createCoverFrame(workDir, coverPath, title, coverDeck);
   const music = await createProceduralMusic(workDir, category, totalDuration, `${title}|${coverDeck}`);
-  const concatFile = path.join(workDir, 'visuals.txt');
-  const parts = [`file '${framedCover.replaceAll("'", "'\\''")}'`, `duration ${coverDuration.toFixed(4)}`];
-  for (let index = 0; index < scenePaths.length; index += 1) {
-    const scenePath = scenePaths[index];
-    parts.push(`file '${scenePath.replaceAll("'", "'\\''")}'`, `duration ${sceneDurations[index].toFixed(4)}`);
-  }
-  parts.push(`file '${scenePaths.at(-1).replaceAll("'", "'\\''")}'`);
-  await fs.writeFile(concatFile, parts.join('\n'), 'utf8');
-
+  const concatFile = path.join(workDir, 'visual-clips.txt');
   const visualOnly = path.join(workDir, 'visual.mp4');
-  const videoFilter = "scale=820:1458,crop=720:1280:x='50+48*sin(t*0.67)':y='89+82*cos(t*0.49)',setsar=1,fps=30";
-  await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concatFile, '-t', String(totalDuration), '-vf', videoFilter, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-pix_fmt', 'yuv420p', '-an', visualOnly]);
+  const clipPaths = [];
+  const motionFor = (index, frames, isCover = false) => {
+    if (isCover) {
+      return "scale=900:1600,zoompan=z='min(zoom+0.0012,1.09)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30";
+    }
+    const safeFrames = Math.max(1, frames);
+    const motions = [
+      "scale=920:1640,zoompan=z='min(zoom+0.0026,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
+      `scale=920:1640,zoompan=z='1.11':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
+      "scale=920:1640,zoompan=z='max(1.18-on*0.0022,1.03)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
+      `scale=920:1640,zoompan=z='1.11':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
+      `scale=920:1640,zoompan=z='1.12':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=720x1280:fps=30`,
+      "scale=920:1640,zoompan=z='min(zoom+0.0034,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.38-(ih/zoom/2)':d=1:s=720x1280:fps=30"
+    ];
+    return motions[index % motions.length];
+  };
+
+  const makeMotionClip = async (inputPath, duration, index, isCover = false) => {
+    const out = path.join(workDir, `motion-${String(index).padStart(2, '0')}.mp4`);
+    const frames = Math.max(1, Math.round(duration * 30));
+    const flash = !isCover && [0, 3, 7, 10, 14].includes(index)
+      ? ',fade=t=in:st=0:d=0.065:color=white'
+      : '';
+    const colorGrade = isCover ? '' : ',eq=contrast=1.07:saturation=1.12:brightness=-0.01';
+    await run('ffmpeg', [
+      '-y', '-loop', '1', '-framerate', '30', '-i', inputPath,
+      '-t', duration.toFixed(4),
+      '-vf', `${motionFor(index, frames, isCover)}${colorGrade}${flash},format=yuv420p`,
+      '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27',
+      '-r', '30', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0', out,
+    ]);
+    clipPaths.push(out);
+  };
+
+  await makeMotionClip(framedCover, coverDuration, -1, true);
+  for (let index = 0; index < scenePaths.length; index += 1) {
+    await makeMotionClip(scenePaths[index], sceneDurations[index], index, false);
+  }
+  await fs.writeFile(
+    concatFile,
+    clipPaths.map(clipPath => `file '${clipPath.replaceAll("'", "'\\''")}'`).join('\n'),
+    'utf8'
+  );
+  await run('ffmpeg', [
+    '-y', '-f', 'concat', '-safe', '0', '-i', concatFile,
+    '-t', String(totalDuration), '-c:v', 'copy', '-an', visualOnly,
+  ]);
 
   const narrationTarget = totalDuration - 0.45;
   const narrationTempo = narrationDuration && narrationDuration > narrationTarget
