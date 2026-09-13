@@ -331,10 +331,11 @@ async function processJob(id) {
       }
     }
     if (!coverAssetPath) {
-      const cover = await studioCall('/api/engine/cover', { topic: topicData.topic, title: story.title || topicData.title, protagonist: topicData.protagonist }, { timeoutMs: 240000, attempts: 5 });
-      await writeBase64File(coverLocal, cover.data);
+      // La apertura usa la escena más potente: famoso + conflicto + La Comadre.
+      // Así la promesa visual de la portada coincide exactamente con el Reel.
+      await fs.copyFile(scenePaths[0], coverLocal);
       coverAssetPath = `covers/${reel.id}/cover.png`;
-      await uploadAsset(coverAssetPath, coverLocal, cover.mimeType || 'image/png');
+      await uploadAsset(coverAssetPath, coverLocal, 'image/png');
       await persistJobResult(id, { coverAssetPath });
     }
     await query('update comoasi.reels set cover=$2::jsonb, updated_at=now() where id=$1', [reel.id, JSON.stringify({ assetPath: coverAssetPath, title: story.title || topicData.title, deck: story.coverDeck || '' })]);
