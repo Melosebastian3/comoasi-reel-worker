@@ -179,7 +179,7 @@ function performLine(text, delivery) {
   return `${clean}.`;
 }
 
-export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-CO-SalomeNeural', category = 'actualidad', onBlockProgress = null) {
+export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-JorgeNeural', category = 'actualidad', onBlockProgress = null) {
   const lines = Array.isArray(scenesOrNarration)
     ? scenesOrNarration
       .map(scene => ({ text: cleanSpeech(scene?.narration), delivery: normalizeDelivery(scene?.delivery) }))
@@ -214,11 +214,11 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: -3 + tensionLift, pitch: 3, volume: 11 },
-    veneno: { rate: -6 + tensionLift, pitch: 0, volume: 9 },
-    suspenso: { rate: -10 + tensionLift, pitch: -2, volume: 8 },
-    incredula: { rate: -4 + tensionLift, pitch: 4, volume: 11 },
-    remate: { rate: -7 + tensionLift, pitch: -1, volume: 12 },
+    golpe: { rate: -5 + tensionLift, pitch: -8, volume: 11 },
+    veneno: { rate: -9 + tensionLift, pitch: -11, volume: 10 },
+    suspenso: { rate: -13 + tensionLift, pitch: -14, volume: 9 },
+    incredula: { rate: -6 + tensionLift, pitch: -7, volume: 11 },
+    remate: { rate: -10 + tensionLift, pitch: -13, volume: 12 },
   };
 
   const pauseAfter = (block, index) => {
@@ -253,7 +253,7 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const labels = clipPaths.map((_, index) => `[part${index}]`).join('');
   const filter = [
     ...prepared,
-    `${labels}concat=n=${clipPaths.length}:v=0:a=1,highpass=f=75,lowpass=f=14000,equalizer=f=3500:t=q:w=1:g=-1.5,loudnorm=I=-17:LRA=10:TP=-1.5[voice]`,
+    `${labels}concat=n=${clipPaths.length}:v=0:a=1,highpass=f=62,lowpass=f=12500,equalizer=f=135:t=q:w=1.1:g=3.2,equalizer=f=2850:t=q:w=1:g=-2.2,acompressor=threshold=-18dB:ratio=1.45:attack=18:release=190,loudnorm=I=-17:LRA=11:TP=-1.5[voice]`,
   ].join(';');
   await run('ffmpeg', [
     '-y', ...inputs,
