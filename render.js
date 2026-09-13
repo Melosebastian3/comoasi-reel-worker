@@ -214,11 +214,11 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: -5 + tensionLift, pitch: -8, volume: 11 },
-    veneno: { rate: -9 + tensionLift, pitch: -11, volume: 10 },
-    suspenso: { rate: -13 + tensionLift, pitch: -14, volume: 9 },
-    incredula: { rate: -6 + tensionLift, pitch: -7, volume: 11 },
-    remate: { rate: -10 + tensionLift, pitch: -13, volume: 12 },
+    golpe: { rate: -7 + tensionLift, pitch: -14, volume: 12 },
+    veneno: { rate: -11 + tensionLift, pitch: -17, volume: 11 },
+    suspenso: { rate: -15 + tensionLift, pitch: -20, volume: 10 },
+    incredula: { rate: -8 + tensionLift, pitch: -12, volume: 12 },
+    remate: { rate: -12 + tensionLift, pitch: -22, volume: 13 },
   };
 
   const pauseAfter = (block, index) => {
@@ -253,7 +253,7 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const labels = clipPaths.map((_, index) => `[part${index}]`).join('');
   const filter = [
     ...prepared,
-    `${labels}concat=n=${clipPaths.length}:v=0:a=1,highpass=f=62,lowpass=f=12500,equalizer=f=135:t=q:w=1.1:g=3.2,equalizer=f=2850:t=q:w=1:g=-2.2,acompressor=threshold=-18dB:ratio=1.45:attack=18:release=190,loudnorm=I=-17:LRA=11:TP=-1.5[voice]`,
+    `${labels}concat=n=${clipPaths.length}:v=0:a=1,highpass=f=55,lowpass=f=11200,equalizer=f=105:t=q:w=1.0:g=4.5,equalizer=f=720:t=q:w=1.2:g=1.2,equalizer=f=3050:t=q:w=1:g=-3.4,acompressor=threshold=-19dB:ratio=1.55:attack=22:release=220,loudnorm=I=-17:LRA=12:TP=-1.5[voice]`,
   ].join(';');
   await run('ffmpeg', [
     '-y', ...inputs,
