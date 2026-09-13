@@ -604,10 +604,33 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   ]);
 
   const stat = await fs.stat(finalPath);
-  if (stat.size > 4600000) {
+  const maxUploadBytes = 3450000;
+  console.info(`[como-asi] rendered MP4 size: ${stat.size} bytes for ${totalDuration}s`);
+  if (stat.size > maxUploadBytes) {
     const compact = path.join(workDir, 'final-compact.mp4');
-    await run('ffmpeg', ['-y', '-i', finalPath, '-c:v', 'libx264', '-b:v', '430k', '-maxrate', '500k', '-bufsize', '1000k', '-c:a', 'aac', '-b:a', '72k', '-movflags', '+faststart', compact]);
+    const audioKbps = 64;
+    const containerMarginKbps = 18;
+    const targetTotalKbps = Math.floor((maxUploadBytes * 8) / (totalDuration * 1000));
+    const videoKbps = Math.max(140, Math.min(360, targetTotalKbps - audioKbps - containerMarginKbps));
+    const maxRateKbps = Math.max(videoKbps + 20, Math.round(videoKbps * 1.12));
+    const bufferKbps = Math.round(maxRateKbps * 2.2);
+    console.info(`[como-asi] compacting MP4 for JSON transport at ${videoKbps}k video + ${audioKbps}k audio`);
+    await run('ffmpeg', [
+      '-y', '-i', finalPath,
+      '-c:v', 'libx264', '-preset', 'medium',
+      '-b:v', `${videoKbps}k`,
+      '-maxrate', `${maxRateKbps}k`,
+      '-bufsize', `${bufferKbps}k`,
+      '-c:a', 'aac', '-b:a', `${audioKbps}k`,
+      '-movflags', '+faststart', compact,
+    ]);
+    const compactStat = await fs.stat(compact);
+    console.info(`[como-asi] compact MP4 size: ${compactStat.size} bytes; base64 estimate: ${Math.ceil(compactStat.size / 3) * 4} bytes`);
+    if (compactStat.size > 3900000) {
+      throw new Error(`final_video_exceeds_transport_limit:${compactStat.size}`);
+    }
     return compact;
   }
+  console.info(`[como-asi] MP4 base64 estimate: ${Math.ceil(stat.size / 3) * 4} bytes`);
   return finalPath;
 }
