@@ -36,6 +36,28 @@ function cleanSpeech(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function wrapCoverText(text, maxLength = 18, maxLines = 2) {
+  const words = cleanSpeech(text).split(' ').filter(Boolean);
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxLength || current.length === 0) {
+      current = candidate;
+      continue;
+    }
+    lines.push(current);
+    current = word;
+    if (lines.length === maxLines - 1) break;
+  }
+  if (current && lines.length < maxLines) {
+    const consumed = lines.join(' ').split(' ').filter(Boolean).length;
+    const remaining = words.slice(consumed).join(' ');
+    lines.push(remaining.length > maxLength + 5 ? `${remaining.slice(0, maxLength + 2).trim()}…` : remaining);
+  }
+  return lines.slice(0, maxLines).join('\n');
+}
+
 async function synthesizeEdgeTts(text, voice, style, inputPath, outputPath) {
   const rate = `${style.rate >= 0 ? '+' : ''}${style.rate}%`;
   const pitch = `${style.pitch >= 0 ? '+' : ''}${style.pitch}Hz`;
@@ -246,14 +268,15 @@ export async function createCoverFrame(workDir, coverPath, title, deck) {
   const titleFile = path.join(workDir, 'cover-title.txt');
   const deckFile = path.join(workDir, 'cover-deck.txt');
   const out = path.join(workDir, 'cover-framed.jpg');
-  await fs.writeFile(titleFile, String(title || '').toUpperCase(), 'utf8');
-  await fs.writeFile(deckFile, String(deck || '').toUpperCase(), 'utf8');
+  await fs.writeFile(titleFile, wrapCoverText(title, 18, 2).toUpperCase(), 'utf8');
+  await fs.writeFile(deckFile, wrapCoverText(deck, 24, 2).toUpperCase(), 'utf8');
   const filter = [
     'scale=720:1280:force_original_aspect_ratio=increase',
     'crop=720:1280',
-    'drawbox=x=0:y=760:w=720:h=520:color=black@0.50:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=54:x=48:y=830:line_spacing=10`,
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:textfile=${deckFile}:fontcolor=white:fontsize=28:x=48:y=1010:line_spacing=8`,
+    'drawbox=x=36:y=710:w=648:h=500:color=black@0.72:t=fill',
+    'drawbox=x=36:y=710:w=12:h=500:color=0xCBFF33@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=50:x=72:y=770:line_spacing=12`,
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:textfile=${deckFile}:fontcolor=0xCBFF33:fontsize=28:x=72:y=1015:line_spacing=8`,
   ].join(',');
   await run('ffmpeg', ['-y', '-i', coverPath, '-vf', filter, '-frames:v', '1', '-q:v', '2', out]);
   return out;
@@ -351,7 +374,7 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
 export async function renderReel({ workDir, coverPath, scenePaths, scenes, narrationPath, category, title, coverDeck }) {
   const narrationDuration = await probeDuration(narrationPath);
   const totalDuration = Math.max(45, Math.min(55, Math.ceil((narrationDuration || 49) + 1.1)));
-  const coverDuration = 0.65;
+  const coverDuration = 1.35;
   const visualDuration = totalDuration - coverDuration;
   const rawWeights = scenes.map(scene => {
     const requested = Number(scene?.durationSeconds);
