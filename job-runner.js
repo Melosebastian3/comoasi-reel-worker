@@ -7,6 +7,8 @@ import { getAssetUrl, studioCall, uploadAsset, writeBase64File } from './engine.
 import { createNarrationAudio, renderReel } from './render.js';
 
 const running = new Set();
+const VISUAL_STYLE_REV = 'mala-fama-male-v3';
+const NARRATOR_VOICE = 'es-MX-JorgeNeural';
 
 function normalizeTopic(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -216,9 +218,9 @@ function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
 }
 
 async function obtainSceneImage({ reelId, scene, index, workDir, topic, protagonist }) {
-  const assetPath = `reels/${reelId}/scenes/scene-${String(index + 1).padStart(2, '0')}.png`;
+  const assetPath = `reels/${reelId}/scenes/${VISUAL_STYLE_REV}/scene-${String(index + 1).padStart(2, '0')}.png`;
   const localPath = path.join(workDir, `scene-${String(index + 1).padStart(2, '0')}.png`);
-  if (scene.assetPath) {
+  if (scene.assetPath === assetPath) {
     try {
       const url = await getAssetUrl(scene.assetPath);
       await downloadTo(url, localPath);
@@ -371,10 +373,11 @@ async function processJob(id) {
     }
 
     await setJobStage(id, 'voice');
+    console.info(`[como-asi] narrator voice locked: ${NARRATOR_VOICE}`);
     const voicePath = await createNarrationAudio(
       workDir,
       scenes,
-      process.env.TTS_VOICE || 'es-MX-JorgeNeural',
+      NARRATOR_VOICE,
       topicData.category,
       async (completed, total) => {
         const voiceProgress = 80 + Math.min(6, Math.round((completed / total) * 6));
@@ -389,7 +392,10 @@ async function processJob(id) {
     await persistJobResult(id, { voiceAssetPath });
 
     await setJobStage(id, 'cover');
-    let coverAssetPath = job.result?.coverAssetPath;
+    const expectedCoverAssetPath = `covers/${reel.id}/${VISUAL_STYLE_REV}/cover.png`;
+    let coverAssetPath = job.result?.coverAssetPath === expectedCoverAssetPath
+      ? expectedCoverAssetPath
+      : null;
     const coverLocal = path.join(workDir, 'cover.png');
     if (coverAssetPath) {
       try {
@@ -399,10 +405,35 @@ async function processJob(id) {
       }
     }
     if (!coverAssetPath) {
-      // La apertura usa la escena más potente: famoso + conflicto + La Comadre.
-      // Así la promesa visual de la portada coincide exactamente con el Reel.
-      await fs.copyFile(scenePaths[0], coverLocal);
-      coverAssetPath = `covers/${reel.id}/cover.png`;
+      const coverPrompt = [
+        'Portada vertical 9:16 para un show latino de sátira de celebridades, sin texto.',
+        'Mala Fama domina el primer plano: hombre alto y anguloso, cabello negro peinado hacia atrás con una única mecha blanca, barba corta perfectamente marcada, traje negro entallado, camisa magenta oscura, guantes negros, pañuelo verde lima y micrófono de metal ennegrecido.',
+        'Expresión de desprecio divertido: media sonrisa, una ceja levantada, mirada de verdugo aburrido y boca cerrada.',
+        topicData.protagonist
+          ? `A su lado aparece ${topicData.protagonist}, reconocible de inmediato pero caricaturizado de forma feroz, atrapado en una metáfora visual específica del escándalo.`
+          : 'A su lado aparece la figura pública central, reconocible y caricaturizada de forma feroz, atrapada en una metáfora visual específica del escándalo.',
+        `Tema: ${topicData.topic}. Conflicto visual: ${story.coverDeck || story.hook || topicData.hook || story.title || topicData.title}.`,
+        'Composición premium de póster editorial: choque cara a cara, diagonales fuertes, profundidad, iluminación teatral, espacio limpio en el tercio inferior para el titular añadido después.',
+        'Caricatura editorial exagerada de alto presupuesto, tinta negra expresiva, recortes de papel, semitono fino, magenta, verde lima, crema y azul noche.',
+        'Una sola escena coherente. Prohibido: texto, logos, marcas de agua, collage, cuadrícula, anime, fotorrealismo, pose frontal estática o boca abierta genérica.'
+      ].join(' ');
+      try {
+        const generatedCover = await studioCall(
+          '/api/engine/image',
+          {
+            topic: topicData.topic,
+            protagonist: topicData.protagonist,
+            visualPrompt: coverPrompt,
+            visualStyleRevision: VISUAL_STYLE_REV,
+          },
+          { timeoutMs: 240000, attempts: 4 }
+        );
+        await writeBase64File(coverLocal, generatedCover.data);
+      } catch (coverError) {
+        console.warn('[como-asi] dedicated cover failed; using fresh opening scene', coverError instanceof Error ? coverError.message : String(coverError));
+        await fs.copyFile(scenePaths[0], coverLocal);
+      }
+      coverAssetPath = expectedCoverAssetPath;
       await uploadAsset(coverAssetPath, coverLocal, 'image/png');
       await persistJobResult(id, { coverAssetPath });
     }
