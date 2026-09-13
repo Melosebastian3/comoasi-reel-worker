@@ -177,7 +177,7 @@ function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
     identity,
     `Tema: ${topic}.`,
     `Acción específica de esta escena: ${String(scene?.visualPrompt || scene?.narration || '').trim()}.`,
-    'ESTILO OBLIGATORIO: caricatura editorial satírica, exagerada y claramente burlona dese de revista de escándalos; cabeza y gestos ligeramente sobredimensionados, cejas, boca, mirada y pose llevadas al máximo, energía absurda y elegante. Debe parecer una ilustración premium dibujada para reírse del drama, no una fotografía ni un retrato respetuoso.',
+    'ESTILO OBLIGATORIO: caricatura editorial satírica, exagerada y claramente burlona, de revista de escándalos; cabeza y gestos ligeramente sobredimensionados, cejas, boca, mirada y pose llevadas al máximo, energía absurda y elegante. Debe parecer una ilustración premium dibujada para reírse del drama, no una fotografía ni un retrato respetuoso.',
     'Mantener continuidad visual: tinta negra expresiva, recortes de papel, textura impresa de semitono, paleta magenta, verde lima, crema y azul noche, iluminación cinematográfica, lente angular, profundidad y movimiento congelado.',
     'La burla debe recaer en el ego, la pose, el lujo, el dramatismo o la contradicción pública del personaje; no caricaturizar raza, nacionalidad, religión, discapacidad, cuerpo ni otras características protegidas.',
     'Prohibido: fotorrealismo, anime, rostro genérico, retrato frontal estático, persona centrada posando, fondo vacío, póster, cuadrícula, díptico, viñetas, texto, titulares legibles, logos o marcas de agua.',
