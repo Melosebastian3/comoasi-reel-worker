@@ -119,6 +119,7 @@ export async function automationStatus() {
   return {
     enabled: value.enabled !== false,
     connected: Boolean(value.accessTokenEnc),
+    renewable: Boolean(value.refreshTokenEnc),
     ready: Boolean(value.accessTokenEnc && value.brandId),
     brandId: value.brandId || null,
     brandLabel: value.brandLabel || null,
