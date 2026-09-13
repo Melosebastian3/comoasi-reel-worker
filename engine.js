@@ -46,8 +46,12 @@ export async function writeBase64File(filePath, base64) {
 }
 
 export async function uploadAsset(assetPath, filePath, contentType) {
+  const stat = await fs.stat(filePath);
   const content = await fs.readFile(filePath, { encoding: 'base64' });
-  return studioCall('/api/assets/write', { path: assetPath, content, contentType }, { timeoutMs: 180000, attempts: 4 });
+  console.info(`[como-asi] asset upload started: ${assetPath} (${stat.size} bytes raw, ${content.length} bytes base64)`);
+  const result = await studioCall('/api/assets/write', { path: assetPath, content, contentType }, { timeoutMs: 180000, attempts: 4 });
+  console.info(`[como-asi] asset upload completed: ${assetPath}`);
+  return result;
 }
 
 export async function getAssetUrl(assetPath) {
