@@ -103,6 +103,16 @@ export async function saveMetricoolBrand(input) {
   return automationStatus();
 }
 
+export async function setAutomationEnabled(enabled) {
+  const current = await loadConfig();
+  if (!current) throw new Error('metricool_connection_required');
+  const value = { ...current, enabled: Boolean(enabled), lastError: null };
+  delete value.updatedAt;
+  await saveConfig(value);
+  if (value.enabled) void automationTick();
+  return automationStatus();
+}
+
 export async function automationStatus() {
   const value = await loadConfig();
   if (!value) return { enabled: false, connected: false, ready: false, timezone: defaultTimezone, slots: defaultSlots, networks: defaultNetworks };

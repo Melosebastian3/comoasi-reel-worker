@@ -5,7 +5,7 @@ import { createJob, setJobStage } from './pipeline.js';
 import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
-import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, startAutomationDispatcher } from './metricool-automation.js';
+import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, setAutomationEnabled, startAutomationDispatcher } from './metricool-automation.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -257,6 +257,14 @@ app.post('/api/automation/tick', async (_req, res) => {
     res.json(await automationTick());
   } catch (error) {
     res.status(500).json({ error: error?.message || 'automation_tick_failed' });
+  }
+});
+
+app.post('/api/automation/enabled', async (req, res) => {
+  try {
+    res.json(await setAutomationEnabled(Boolean(req.body?.enabled)));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || 'automation_update_failed' });
   }
 });
 
