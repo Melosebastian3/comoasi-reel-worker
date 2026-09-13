@@ -273,7 +273,7 @@ export async function createCoverFrame(workDir, coverPath, title, deck) {
   const out = path.join(workDir, 'cover-framed.jpg');
   await fs.writeFile(brandFile, 'MALA FAMA PRESENTA', 'utf8');
   await fs.writeFile(showFile, '¿CÓMO ASÍ?', 'utf8');
-  await fs.writeFile(titleFile, wrapCoverText(title, 17, 3).toUpperCase(), 'utf8');
+  await fs.writeFile(titleFile, wrapCoverText(title, 14, 4).toUpperCase(), 'utf8');
   await fs.writeFile(deckFile, wrapCoverText(deck || 'EL EGO ENTRÓ PRIMERO', 25, 2).toUpperCase(), 'utf8');
   const filter = [
     'scale=720:1280:force_original_aspect_ratio=increase',
@@ -286,10 +286,10 @@ export async function createCoverFrame(workDir, coverPath, title, deck) {
     `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${brandFile}:fontcolor=0xCBFF33:fontsize=22:x=54:y=57:shadowcolor=black@0.95:shadowx=2:shadowy=2`,
     'drawbox=x=510:y=42:w=180:h=54:color=0xB51570@0.92:t=fill',
     `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=22:x=526:y=57:shadowcolor=black@0.9:shadowx=2:shadowy=2`,
-    'drawbox=x=24:y=805:w=672:h=431:color=0x07090D@0.78:t=fill',
-    'drawbox=x=24:y=805:w=672:h=8:color=0xCBFF33@1:t=fill',
-    'drawbox=x=43:y=840:w=10:h=274:color=0xB51570@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=58:x=76:y=842:line_spacing=8:shadowcolor=black@0.98:shadowx=3:shadowy=3`,
+    'drawbox=x=24:y=750:w=672:h=486:color=0x07090D@0.80:t=fill',
+    'drawbox=x=24:y=750:w=672:h=8:color=0xCBFF33@1:t=fill',
+    'drawbox=x=43:y=785:w=10:h=310:color=0xB51570@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=48:x=70:y=785:line_spacing=6:fix_bounds=true:shadowcolor=black@0.98:shadowx=3:shadowy=3`,
     'drawbox=x=76:y=1128:w=520:h=2:color=white@0.26:t=fill',
     `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${deckFile}:fontcolor=0xDFFF75:fontsize=25:x=76:y=1150:line_spacing=7:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
   ].join(',');
