@@ -7,7 +7,7 @@ import { getAssetUrl, studioCall, uploadAsset, writeBase64File } from './engine.
 import { createNarrationAudio, renderReel } from './render.js';
 
 const running = new Set();
-const VISUAL_STYLE_REV = 'mala-fama-male-v3';
+const VISUAL_STYLE_REV = 'mala-fama-devil-v1';
 const NARRATOR_VOICE = 'es-MX-JorgeNeural';
 
 function normalizeTopic(value) {
@@ -194,9 +194,9 @@ const visualBeatDirections = [
 ];
 
 function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
-  const hostScene = [0, 5, 10, 15].includes(index);
+  const hostScene = /\bHOST_SCENE\b/i.test(String(scene?.visualPrompt || '')) || [0, 4, 8, 12, 15].includes(index);
   const identity = hostScene
-    ? 'Mala Fama es siempre el mismo conductor ficticio panlatino: hombre alto y anguloso, cabello negro peinado hacia atrás con una única mecha blanca, barba corta perfectamente marcada, traje negro entallado, camisa magenta oscura, guantes negros, pañuelo verde lima y micrófono de metal ennegrecido. Rostro reconocible y constante entre escenas. Su expresión base es desprecio divertido: media sonrisa, una ceja levantada y mirada de verdugo aburrido. Debe dominar la escena, invadir el espacio del chisme, señalar pruebas o ejecutar el remate; jamás posar como modelo ni abrir la boca con sorpresa.'
+    ? 'Mala Fama es siempre el mismo presentador masculino y diablo animado editorial adulto: rostro anguloso color borgoña oscuro, dos cuernos negros pulidos curvados hacia atrás, ojos verde ácido, cabello negro peinado hacia atrás con una mecha blanca, barba puntiaguda corta, traje negro entallado, camisa magenta, guantes negros, pañuelo verde ácido, cola fina terminada en punta y micrófono de metal ennegrecido. Sonrisa lateral de verdugo, ceja levantada y presencia dominante. Debe señalar pruebas, accionar el gag o dictar sentencia; jamás parecer mujer, humano corriente, personaje infantil, monstruo realista ni copia de una franquicia.'
     : 'No mostrar al conductor Mala Fama en esta escena; concentrarse en el protagonista, la acción o la prueba.';
   const famous = protagonist
     ? `La figura pública ${protagonist} debe ser reconocible de inmediato: conservar forma del rostro, peinado, mirada y rasgos icónicos, pero exagerarlos con intención cómica y expresión escandalosa; jamás sustituirla por una persona genérica.`
@@ -299,7 +299,7 @@ async function processJob(id) {
             editorialMandate: {
               show: '¿Cómo Así?',
               host: 'Mala Fama',
-              identity: 'Conductor ficticio panlatino, masculino, elegante y siniestro: voz de ultratumba, humor de verdugo, cruel con el ego del poderoso, veloz para detectar hipocresías y cero reverente.',
+              identity: 'Mala Fama es un presentador masculino y diablo animado adulto: elegante, siniestro, voz de ultratumba, humor de verdugo y cero tono de amiga chismosa. Abre el expediente, exhibe la contradicción y dicta sentencia.',
               genre: 'Comedia negra de actualidad y roast de celebridades. El dato es la munición; el entretenimiento es el producto.',
               intensity: storyAttempt === 1 ? 'alto' : storyAttempt === 2 ? 'muy alto' : 'sin piedad editorial',
               architecture: [
@@ -407,8 +407,8 @@ async function processJob(id) {
     if (!coverAssetPath) {
       const coverPrompt = [
         'Portada vertical 9:16 para un show latino de sátira de celebridades, sin texto.',
-        'Mala Fama domina el primer plano: hombre alto y anguloso, cabello negro peinado hacia atrás con una única mecha blanca, barba corta perfectamente marcada, traje negro entallado, camisa magenta oscura, guantes negros, pañuelo verde lima y micrófono de metal ennegrecido.',
-        'Expresión de desprecio divertido: media sonrisa, una ceja levantada, mirada de verdugo aburrido y boca cerrada.',
+        'Mala Fama domina el primer plano: presentador masculino y diablo animado editorial adulto, rostro anguloso borgoña oscuro, dos cuernos negros pulidos curvados hacia atrás, ojos verde ácido, cabello negro hacia atrás con una mecha blanca, barba puntiaguda corta, traje negro entallado, camisa magenta, guantes negros, pañuelo verde ácido, cola fina terminada en punta y micrófono de metal ennegrecido.',
+        'Expresión de desprecio divertido: sonrisa lateral de verdugo, una ceja levantada, mirada dominante y boca cerrada. Nunca mujer, humano corriente, personaje infantil, monstruo terrorífico realista ni copia de una franquicia.',
         topicData.protagonist
           ? `A su lado aparece ${topicData.protagonist}, reconocible de inmediato pero caricaturizado de forma feroz, atrapado en una metáfora visual específica del escándalo.`
           : 'A su lado aparece la figura pública central, reconocible y caricaturizada de forma feroz, atrapada en una metáfora visual específica del escándalo.',
