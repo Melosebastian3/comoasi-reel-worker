@@ -135,7 +135,7 @@ function categoryProfile(category) {
     internet: { bpm: 132, rootMidi: 50, progression: [0, 7, 10, 5], brightness: 0.88, tension: 0.48 },
     bizarro_wtf: { bpm: 108, rootMidi: 43, progression: [0, 1, 6, 5], brightness: 0.38, tension: 0.9 },
     bizarro: { bpm: 108, rootMidi: 43, progression: [0, 1, 6, 5], brightness: 0.38, tension: 0.9 },
-    humor_negro: { bpm: 94, rootMidi: 41, progression: [0, 3, 1, 6], brightness: 0.2, tension: 0.84 },
+    humor_negro: { bpm: 122, rootMidi: 41, progression: [0, 3, 1, 6], brightness: 0.34, tension: 0.88 },
     cultura_pop_actualidad: { bpm: 126, rootMidi: 50, progression: [0, 5, 8, 7], brightness: 0.9, tension: 0.3 },
     cultura_pop: { bpm: 126, rootMidi: 50, progression: [0, 5, 8, 7], brightness: 0.9, tension: 0.3 },
   };
@@ -300,80 +300,105 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
 
   const profile = categoryProfile(category);
   const seed = hashString(`${category}|${seedText}`) || 1;
-  const bpm = 94 + Math.round(profile.tension * 10) + (seed % 5);
+  const bpm = Math.max(118, profile.bpm + Math.round(profile.tension * 5) + (seed % 4));
   const beatSeconds = 60 / bpm;
-  const phraseSeconds = beatSeconds * 8;
-  const rootHz = 38 + (seed % 7);
+  const barSeconds = beatSeconds * 4;
+  const phraseSeconds = barSeconds * 2;
+  const bassSteps = [0, 0, 3, 5, 0, 7, 3, 1];
+  const bassRoot = profile.rootMidi - 12;
   let noiseState = seed;
-  let smoothedNoise = 0;
-  let priorNoise = 0;
+  let previousNoise = 0;
+  let smoothNoise = 0;
 
   for (let i = 0; i < sampleCount; i += 1) {
     const t = i / sampleRate;
-    const beatPhase = (t / beatSeconds) % 1;
-    const halfBeatPhase = (t / (beatSeconds / 2)) % 1;
-    const phrasePhase = t % phraseSeconds;
-    const beatIndex = Math.floor(t / beatSeconds);
+    const beatFloat = t / beatSeconds;
+    const beatIndex = Math.floor(beatFloat);
+    const beatPhase = beatFloat % 1;
+    const eighthFloat = t / (beatSeconds / 2);
+    const eighthIndex = Math.floor(eighthFloat);
+    const eighthPhase = eighthFloat % 1;
+    const barPhase = (t % barSeconds) / barSeconds;
+    const phrasePhaseSeconds = t % phraseSeconds;
     const phraseIndex = Math.floor(t / phraseSeconds);
 
     noiseState = (Math.imul(noiseState, 1664525) + 1013904223) >>> 0;
     const noise = (noiseState / 0xffffffff) * 2 - 1;
-    smoothedNoise += (noise - smoothedNoise) * 0.012;
-    const brightNoise = noise - priorNoise * 0.72;
-    priorNoise = noise;
+    const brightNoise = noise - previousNoise * 0.82;
+    previousNoise = noise;
+    smoothNoise += (noise - smoothNoise) * 0.008;
 
-    const fadeIn = Math.min(1, t / 0.18);
-    const fadeOut = Math.min(1, Math.max(0, (duration - t) / 1.8));
-    const lift = 0.82 + 0.24 * Math.min(1, t / Math.max(1, duration * 0.72));
-    const globalEnv = fadeIn * fadeOut * lift;
+    const fadeIn = Math.min(1, t / 0.10);
+    const fadeOut = Math.min(1, Math.max(0, (duration - t) / 1.2));
+    const globalEnv = fadeIn * fadeOut;
 
-    // Cama grave de suspenso: no hay melodía ni acordes repetitivos.
-    const droneMotion = 1 + 0.015 * Math.sin(2 * Math.PI * 0.07 * t);
+    // Bajo con actitud de late-night: insistente, sincopado y nada sentimental.
+    const bassStep = bassSteps[beatIndex % bassSteps.length];
+    const bassFreq = midiToFreq(bassRoot + bassStep);
+    const bassEnv = Math.exp(-beatPhase * 4.8);
+    const bass = (
+      Math.sin(2 * Math.PI * bassFreq * t) * 0.105 +
+      Math.sin(2 * Math.PI * bassFreq * 2 * t) * 0.025
+    ) * bassEnv;
+
+    // Kick seco en cada pulso y clap burlón en dos y cuatro.
+    const kickFreq = 50 + 54 * Math.exp(-beatPhase * 15);
+    const kick = Math.sin(2 * Math.PI * kickFreq * t) * Math.exp(-beatPhase * 16) * 0.18;
+    const backbeat = beatIndex % 4 === 1 || beatIndex % 4 === 3;
+    const clap = backbeat ? brightNoise * Math.exp(-beatPhase * 34) * 0.078 : 0;
+
+    // Hi-hat nervioso: mantiene avance aun debajo de la narración.
+    const hatAccent = eighthIndex % 2 === 0 ? 0.030 : 0.018;
+    const hat = brightNoise * Math.exp(-eighthPhase * 52) * hatAccent;
+
+    // Cuerda grave corta: tensión de chisme sin volver a documental solemne.
     const drone = (
-      Math.sin(2 * Math.PI * rootHz * droneMotion * t) * 0.046 +
-      Math.sin(2 * Math.PI * rootHz * 1.5 * t) * 0.016
-    );
+      Math.sin(2 * Math.PI * midiToFreq(bassRoot - 5) * t) * 0.020 +
+      smoothNoise * 0.010
+    ) * (0.72 + 0.28 * Math.sin(2 * Math.PI * 0.10 * t));
 
-    // Pulso seco tipo tráiler, con un segundo latido fantasma.
-    const mainPulse = Math.exp(-beatPhase * 14);
-    const ghostPhase = ((t - beatSeconds * 0.34) / beatSeconds) % 1;
-    const normalizedGhost = ghostPhase < 0 ? ghostPhase + 1 : ghostPhase;
-    const ghostPulse = Math.exp(-normalizedGhost * 22) * 0.38;
-    const pulseTone = Math.sin(2 * Math.PI * (54 + 34 * (1 - beatPhase)) * t);
-    const pulse = pulseTone * (mainPulse + ghostPulse) * 0.105;
+    // Golpe cómico de metales al inicio de cada frase musical.
+    const stingT = phrasePhaseSeconds;
+    const stingEnv = Math.exp(-stingT * 5.6);
+    const stingBase = midiToFreq(profile.rootMidi + (phraseIndex % 2 ? 1 : 0));
+    const brass = (
+      Math.sin(2 * Math.PI * stingBase * t) +
+      Math.sin(2 * Math.PI * stingBase * 1.5 * t) * 0.55 +
+      Math.sin(2 * Math.PI * stingBase * 2 * t) * 0.28
+    ) * stingEnv * 0.082;
 
-    // Tic nervioso y obturador: textura de paparazzi, no batería barata.
-    const tickGate = beatIndex % 2 === 1 ? Math.exp(-halfBeatPhase * 48) : 0;
-    const tick = brightNoise * tickGate * 0.012;
-    const shutterGate = beatIndex % 8 === 5 ? Math.exp(-beatPhase * 58) : 0;
-    const shutter = (brightNoise * 0.075 + Math.sin(2 * Math.PI * 1550 * t) * 0.018) * shutterGate;
-
-    // Riser antes de cada revelación y golpe cinematográfico al caer.
-    const riserStart = phraseSeconds - 1.15;
-    const riserProgress = phrasePhase > riserStart ? (phrasePhase - riserStart) / 1.15 : 0;
-    const riser = brightNoise * (riserProgress ** 2.4) * (0.025 + profile.tension * 0.055);
-    const impactEnv = t > 0.4 ? Math.exp(-phrasePhase * 7.8) : 0;
-    const impactSweep = Math.sin(2 * Math.PI * (43 + 28 * Math.exp(-phrasePhase * 5)) * t);
-    const impact = (impactSweep * 0.19 + smoothedNoise * 0.055) * impactEnv;
-
-    // Apertura y cierre con firma sonora corta.
-    const introEnv = Math.exp(-t * 2.7);
-    const introSting = (
-      Math.sin(2 * Math.PI * 74 * t) * 0.16 +
-      Math.sin(2 * Math.PI * 222 * t) * 0.035 +
-      brightNoise * 0.035
-    ) * introEnv;
-    const finalStart = Math.max(0, duration - 2.6);
-    const finalT = Math.max(0, t - finalStart);
-    const finalEnv = t >= finalStart ? Math.exp(-finalT * 1.15) : 0;
-    const finalSting = t >= finalStart
-      ? (Math.sin(2 * Math.PI * (62 + phraseIndex) * t) * 0.13 + brightNoise * 0.022) * finalEnv
+    // Riser, corte de aire y obturador: preparan y cobran cada remate.
+    const riserStart = phraseSeconds - beatSeconds * 1.35;
+    const riserProgress = phrasePhaseSeconds > riserStart
+      ? (phrasePhaseSeconds - riserStart) / (phraseSeconds - riserStart)
+      : 0;
+    const riser = brightNoise * (riserProgress ** 2.2) * 0.065;
+    const prePunchDip = phrasePhaseSeconds > phraseSeconds - 0.095 ? 0.08 : 1;
+    const shutter = beatIndex % 8 === 6
+      ? (brightNoise * 0.070 + Math.sin(2 * Math.PI * 1450 * t) * 0.018) * Math.exp(-beatPhase * 55)
       : 0;
 
-    // Microcorte antes del golpe para que la revelación respire.
-    const preImpactDip = phrasePhase > phraseSeconds - 0.13 ? 0.20 : 1;
-    let sample = (drone + pulse + tick + shutter + riser + impact + introSting + finalSting) * globalEnv * preImpactDip;
-    sample = Math.tanh(sample * 1.75) * 0.78;
+    // Pequeño rayón satírico cada cuatro compases; breve para no cansar.
+    const scratchPhase = t % (barSeconds * 4);
+    const scratch = scratchPhase < 0.16
+      ? brightNoise * Math.sin(2 * Math.PI * (1900 - scratchPhase * 7800) * t) * Math.exp(-scratchPhase * 17) * 0.028
+      : 0;
+
+    // Cierre seco: el programa termina, no se desvanece pidiendo permiso.
+    const finalStart = Math.max(0, duration - 1.7);
+    const finalT = Math.max(0, t - finalStart);
+    const finalHit = t >= finalStart
+      ? (
+        Math.sin(2 * Math.PI * 58 * t) * 0.20 +
+        Math.sin(2 * Math.PI * 116 * t) * 0.055 +
+        brightNoise * 0.030
+      ) * Math.exp(-finalT * 2.8)
+      : 0;
+
+    const grooveLift = 0.92 + 0.12 * Math.sin(2 * Math.PI * barPhase);
+    let sample = (bass + kick + clap + hat + drone + brass + riser + shutter + scratch + finalHit)
+      * globalEnv * grooveLift * prePunchDip;
+    sample = Math.tanh(sample * 1.55) * 0.82;
     const intSample = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
     buffer.writeInt16LE(intSample, 44 + i * 2);
   }
@@ -406,12 +431,12 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
     }
     const safeFrames = Math.max(1, frames);
     const motions = [
-      "scale=920:1640,zoompan=z='min(zoom+0.0026,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
-      `scale=920:1640,zoompan=z='1.11':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
-      "scale=920:1640,zoompan=z='max(1.18-on*0.0022,1.03)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
-      `scale=920:1640,zoompan=z='1.11':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
-      `scale=920:1640,zoompan=z='1.12':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=720x1280:fps=30`,
-      "scale=920:1640,zoompan=z='min(zoom+0.0034,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.38-(ih/zoom/2)':d=1:s=720x1280:fps=30"
+      "scale=940:1680,zoompan=z='min(zoom+0.0042,1.24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
+      `scale=940:1680,zoompan=z='1.16':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
+      "scale=940:1680,zoompan=z='max(1.24-on*0.0035,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
+      `scale=940:1680,zoompan=z='1.16':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
+      `scale=940:1680,zoompan=z='1.17':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=720x1280:fps=30`,
+      `scale=940:1680,zoompan=z='if(lt(on,${Math.round(safeFrames * 0.56)}),1.05+on*0.0014,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.40-(ih/zoom/2)':d=1:s=720x1280:fps=30`
     ];
     return motions[index % motions.length];
   };
@@ -419,7 +444,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const makeMotionClip = async (inputPath, duration, index, isCover = false) => {
     const out = path.join(workDir, `motion-${String(index).padStart(2, '0')}.mp4`);
     const frames = Math.max(1, Math.round(duration * 30));
-    const flash = !isCover && [0, 3, 7, 10, 14].includes(index)
+    const flash = !isCover && [0, 2, 4, 7, 10, 12, 14].includes(index)
       ? ',fade=t=in:st=0:d=0.065:color=white'
       : '';
     const colorGrade = isCover ? '' : ',eq=contrast=1.07:saturation=1.12:brightness=-0.01';
@@ -454,7 +479,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]highpass=f=35,lowpass=f=9000,volume=0.52[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=8.5:attack=8:release=320[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]highpass=f=35,lowpass=f=9000,volume=0.62[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=7.5:attack=8:release=260[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
