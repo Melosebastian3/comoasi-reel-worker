@@ -144,29 +144,29 @@ async function ensureNoHardDuplicate(topicData, force = false) {
 }
 
 const visualBeatDirections = [
-  'Golpe de apertura: primerísimo primer plano del famoso reaccionando en plena acción; La Comadre irrumpe desde un borde señalando la evidencia, composición diagonal y sensación de cámara sorprendida.',
+  'Golpe de apertura: primerísimo primer plano del famoso reaccionando en plena acción; Mala Fama irrumpe desde un borde señalando la evidencia, composición diagonal y sensación de cámara sorprendida.',
   'Paparazzi: el famoso atrapado en medio de una acción pública concreta, flashes agresivos, gente cruzando el primer plano y profundidad real.',
   'Prueba visual: plano macro de un objeto clave del relato en manos humanas; el famoso desenfocado al fondo reaccionando, sin texto legible.',
   'Reacción: rostro reconocible en un momento de tensión, cámara ladeada, manos y miradas contando el conflicto, fondo vivo.',
   'Consecuencia: plano general con el famoso pequeño dentro de una situación grande y caótica; acción, extras y elementos en movimiento.',
-  'La Comadre investiga: plano sobre el hombro frente a una mesa de pruebas visuales; ella gira hacia cámara con expresión de no poder creerlo.',
+  'Mala Fama investiga: plano sobre el hombro frente a una mesa de pruebas visuales; ella gira hacia cámara con expresión de no poder creerlo.',
   'Escalada: escena pública de conflicto visual, dos fuerzas opuestas dentro del mismo encuadre, movimiento congelado en el punto máximo.',
   'Internet explota: teléfonos, flashes y reacciones de multitud rodean al famoso; composición inmersiva, nada de collage plano.',
   'Cambio de poder: contrapicado dramático del protagonista mientras el entorno se desordena; gesto claro y fondo con acción.',
   'Giro: revelación visual mediante una puerta, cortina u objeto que descubre algo; reacción simultánea del famoso.',
-  'La Comadre reacciona: primer plano expresivo con un objeto del caso en una mano; al fondo sucede la consecuencia, no posar mirando al frente.',
+  'Mala Fama reacciona: primer plano expresivo con un objeto del caso en una mano; al fondo sucede la consecuencia, no posar mirando al frente.',
   'Choque: dos personajes reconocibles en tensión dentro de un espacio público; lenguaje corporal fuerte, sin inventar contacto físico.',
   'Daño colateral: consecuencias del escándalo mostradas con una metáfora física dinámica, el protagonista presente y reconocible.',
   'Después del golpe: famoso en un entorno realista inmediatamente posterior al evento, gesto humano, fotógrafos o público en movimiento.',
   'La pieza que cierra el caso: evidencia visual dominante en primer plano y protagonista reaccionando detrás; iluminación de revelación.',
-  'Veredicto: La Comadre cierra mirando a cámara con gesto definitivo mientras detrás vemos la consecuencia final; encuadre icónico de cierre.'
+  'Veredicto: Mala Fama cierra mirando a cámara con gesto definitivo mientras detrás vemos la consecuencia final; encuadre icónico de cierre.'
 ];
 
 function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
   const hostScene = [0, 5, 10, 15].includes(index);
   const identity = hostScene
-    ? 'La Comadre es siempre la misma presentadora ficticia latina: bob negro corto con un mechón verde neón, gafas cat-eye, traje sastre magenta, guantes lima y micrófono verde. Debe estar actuando dentro de la escena, nunca posando como retrato.'
-    : 'No mostrar a La Comadre en esta escena; concentrarse en el protagonista, la acción o la prueba.';
+    ? 'Mala Fama es siempre la misma conductora ficticia latinoamericana: bob negro geométrico con un único mechón verde neón, gafas cat-eye negras, traje sastre magenta impecable, guantes lima y micrófono verde. Su expresión es elegantemente cruel, impaciente y divertida ante el desastre ajeno. Debe dominar la escena y actuar, señalar o reaccionar; jamás posar como retrato.'
+    : 'No mostrar a Mala Fama en esta escena; concentrarse en el protagonista, la acción o la prueba.';
   const famous = protagonist
     ? `La figura pública ${protagonist} debe ser reconocible de inmediato: conservar forma del rostro, peinado, mirada y rasgos icónicos, pero exagerarlos con intención cómica y expresión escandalosa; jamás sustituirla por una persona genérica.`
     : 'Si existe una figura pública central, debe ser reconocible de inmediato y aparecer como caricatura exagerada; nunca usar rostros genéricos.';
@@ -262,7 +262,26 @@ async function processJob(id) {
           title: topicData.title,
           hook: topicData.hook,
           protagonist: topicData.protagonist,
-          research,
+          research: {
+            ...research,
+            editorialMandate: {
+              show: '¿Cómo Así?',
+              host: 'Mala Fama',
+              identity: 'Conductora latinoamericana elegante, venenosa, despiadadamente graciosa y sin paciencia para el ego de los famosos.',
+              format: 'Sátira de actualidad con energía de show: dato verificado, observación cruel, escalada, consecuencia y veredicto.',
+              mandatoryRules: [
+                'Cada bloque debe sonar dicho por una persona con criterio y mala leche, nunca por un documental.',
+                'Después de cada dato importante debe existir una puñalada cómica breve que ataque ego, pose, hipocresía, lujo absurdo o contradicción pública.',
+                'Usar español latino neutro sin modismos de Colombia, México, Argentina, España ni otro país.',
+                'Nada de insultos vacíos, moralejas, lenguaje escolar, frases de IA ni preguntas abiertas al final.',
+                'No inventar delitos, romances, citas, intenciones ni hechos; la comedia interpreta únicamente información verificada.',
+                'El cierre debe emitir un veredicto contundente y memorable que concluya el caso.'
+              ],
+              forbiddenTone: ['documental', 'locutora institucional', 'resumen de noticias', 'admiración de fan', 'prudencia aburrida']
+            }
+          },
+          hostName: 'Mala Fama',
+          tone: 'sátira feroz latinoamericana, elegante y muy venenosa',
           strictSpanish: storyAttempt > 1,
         }, { timeoutMs: 240000, attempts: 5 }));
         const issue = storyValidationIssue(candidate);
