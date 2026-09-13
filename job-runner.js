@@ -520,6 +520,24 @@ export function startQueueDispatcher(intervalMs = 5000) {
 }
 
 export async function recoverJobs() {
+  const { rows: recoveredUploads } = await query(`
+    update comoasi.reel_jobs
+       set status='queued',
+           stage='queued',
+           progress=0,
+           error=null,
+           completed_at=null,
+           result=coalesce(result, '{}'::jsonb) || jsonb_build_object('assetWriteAutoRecoveryAt', now()),
+           updated_at=now()
+     where status='failed'
+       and error like '%/api/assets/write failed%'
+       and updated_at > now() - interval '24 hours'
+       and not (coalesce(result, '{}'::jsonb) ? 'assetWriteAutoRecoveryAt')
+     returning id
+  `);
+  if (recoveredUploads.length) {
+    console.info(`[como-asi] auto-requeued ${recoveredUploads.length} asset upload job(s) after transport fix`);
+  }
   const { rows } = await query(`select id from comoasi.reel_jobs where status in ('queued','running') order by created_at asc limit 10`);
   rows.forEach(row => startJob(row.id));
   return rows.length;
