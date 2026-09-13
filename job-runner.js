@@ -194,8 +194,8 @@ const visualBeatDirections = [
 function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
   const hostScene = [0, 5, 10, 15].includes(index);
   const identity = hostScene
-    ? 'Mala Fama es siempre la misma conductora ficticia latinoamericana: bob negro geométrico con un único mechón verde neón, gafas cat-eye negras, traje sastre magenta impecable, guantes lima y micrófono verde. Su expresión es elegantemente cruel, impaciente y divertida ante el desastre ajeno. Debe dominar la escena y actuar, señalar o reaccionar; jamás posar como retrato.'
-    : 'No mostrar a Mala Fama en esta escena; concentrarse en el protagonista, la acción o la prueba.';
+    ? 'Mala Fama es siempre el mismo conductor ficticio panlatino: hombre alto y anguloso, cabello negro peinado hacia atrás con una única mecha blanca, barba corta perfectamente marcada, traje negro entallado, camisa magenta oscura, guantes negros, pañuelo verde lima y micrófono de metal ennegrecido. Rostro reconocible y constante entre escenas. Su expresión base es desprecio divertido: media sonrisa, una ceja levantada y mirada de verdugo aburrido. Debe dominar la escena, invadir el espacio del chisme, señalar pruebas o ejecutar el remate; jamás posar como modelo ni abrir la boca con sorpresa.'
+    : 'No mostrar al conductor Mala Fama en esta escena; concentrarse en el protagonista, la acción o la prueba.';
   const famous = protagonist
     ? `La figura pública ${protagonist} debe ser reconocible de inmediato: conservar forma del rostro, peinado, mirada y rasgos icónicos, pero exagerarlos con intención cómica y expresión escandalosa; jamás sustituirla por una persona genérica.`
     : 'Si existe una figura pública central, debe ser reconocible de inmediato y aparecer como caricatura exagerada; nunca usar rostros genéricos.';
@@ -297,7 +297,7 @@ async function processJob(id) {
             editorialMandate: {
               show: '¿Cómo Así?',
               host: 'Mala Fama',
-              identity: 'Conductora ficticia panlatina: elegante, inteligente, cruel con el ego del poderoso, veloz para detectar hipocresías y cero reverente.',
+              identity: 'Conductor ficticio panlatino, masculino, elegante y siniestro: voz de ultratumba, humor de verdugo, cruel con el ego del poderoso, veloz para detectar hipocresías y cero reverente.',
               genre: 'Comedia negra de actualidad y roast de celebridades. El dato es la munición; el entretenimiento es el producto.',
               intensity: storyAttempt === 1 ? 'alto' : storyAttempt === 2 ? 'muy alto' : 'sin piedad editorial',
               architecture: [
@@ -315,7 +315,7 @@ async function processJob(id) {
                 'La premisa factual debe entenderse antes del chiste; el remate debe ir al final de la frase.',
                 'Atacar ego, pose, privilegio, lujo absurdo, oportunismo o contradicción pública. Punch up, nunca contra víctimas.',
                 'Usar imágenes mentales concretas y comparaciones nuevas. Si un remate podría servir para cualquier famoso, reescribirlo.',
-                'Mala Fama no describe que algo fue escandaloso: demuestra por qué y dicta sentencia.'
+                'Mala Fama habla como un fiscal del infierno con sentido del humor: presenta el hecho, saborea la contradicción y ejecuta el remate. Nunca suena amable, asombrado ni institucional.'
               ],
               voiceRules: [
                 'Español latinoamericano neutro, natural al oído y sin modismos de Colombia, México, Argentina, España ni otro país.',
@@ -328,7 +328,7 @@ async function processJob(id) {
             }
           },
           hostName: 'Mala Fama',
-          tone: 'sátira feroz latinoamericana, elegante y muy venenosa',
+          tone: 'sátira negra panlatina, masculina, elegante, siniestra y despiadadamente venenosa',
           strictSpanish: storyAttempt > 1,
         }, { timeoutMs: 240000, attempts: 5 }));
         const issue = storyValidationIssue(candidate);
