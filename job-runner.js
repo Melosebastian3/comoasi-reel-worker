@@ -406,7 +406,7 @@ async function processJob(id) {
     }
     if (!coverAssetPath) {
       const coverPrompt = [
-        'Portada vertical 9:16 para un show latino de sátira de celebridades, sin texto.',
+        'HOST_SCENE: Portada vertical 9:16 para un show latino de sátira de celebridades, sin texto.',
         'Mala Fama domina el primer plano: presentador masculino y diablo animado editorial adulto, rostro anguloso borgoña oscuro, dos cuernos negros pulidos curvados hacia atrás, ojos verde ácido, cabello negro hacia atrás con una mecha blanca, barba puntiaguda corta, traje negro entallado, camisa magenta, guantes negros, pañuelo verde ácido, cola fina terminada en punta y micrófono de metal ennegrecido.',
         'Expresión de desprecio divertido: sonrisa lateral de verdugo, una ceja levantada, mirada dominante y boca cerrada. Nunca mujer, humano corriente, personaje infantil, monstruo terrorífico realista ni copia de una franquicia.',
         topicData.protagonist
