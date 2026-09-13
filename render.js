@@ -188,7 +188,7 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   if (lines.length === 0) throw new Error('narration_required');
 
   const blocks = [];
-  const actSizes = [2, 3, 3, 3, 3, 2];
+  const actSizes = [1, 2, 2, 2, 2, 2, 2, 3];
   for (let index = 0, actIndex = 0; index < lines.length; actIndex += 1) {
     const size = Math.min(actSizes[actIndex] || 3, lines.length - index);
     const group = lines.slice(index, index + size);
@@ -214,11 +214,11 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: 1 + tensionLift, pitch: 7, volume: 12 },
-    veneno: { rate: -9 + tensionLift, pitch: 1, volume: 8 },
-    suspenso: { rate: -18 + tensionLift, pitch: -5, volume: 6 },
-    incredula: { rate: -2 + tensionLift, pitch: 9, volume: 11 },
-    remate: { rate: -11 + tensionLift, pitch: -2, volume: 12 },
+    golpe: { rate: -1 + tensionLift, pitch: 10, volume: 13 },
+    veneno: { rate: -10 + tensionLift, pitch: 2, volume: 9 },
+    suspenso: { rate: -20 + tensionLift, pitch: -6, volume: 7 },
+    incredula: { rate: -4 + tensionLift, pitch: 12, volume: 12 },
+    remate: { rate: -13 + tensionLift, pitch: -3, volume: 13 },
   };
 
   const pauseAfter = (block, index) => {
@@ -373,7 +373,7 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
 
 export async function renderReel({ workDir, coverPath, scenePaths, scenes, narrationPath, category, title, coverDeck }) {
   const narrationDuration = await probeDuration(narrationPath);
-  const totalDuration = Math.max(45, Math.min(55, Math.ceil((narrationDuration || 49) + 1.1)));
+  const totalDuration = Math.max(55, Math.min(70, Math.ceil((narrationDuration || 62) + 1.4)));
   const coverDuration = 1.35;
   const visualDuration = totalDuration - coverDuration;
   const rawWeights = scenes.map(scene => {
@@ -401,7 +401,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
 
   const narrationTarget = totalDuration - 0.45;
   const narrationTempo = narrationDuration && narrationDuration > narrationTarget
-    ? Math.min(1.06, narrationDuration / narrationTarget)
+    ? Math.min(1.04, narrationDuration / narrationTarget)
     : 1;
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
