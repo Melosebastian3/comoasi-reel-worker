@@ -180,6 +180,7 @@ function performLine(text, delivery) {
 }
 
 export async function createNarrationAudio(workDir, scenesOrNarration, voice = 'es-MX-JorgeNeural', category = 'actualidad', onBlockProgress = null) {
+  console.info(`[como-asi] synthesizing narrator with locked voice: ${voice}`);
   const lines = Array.isArray(scenesOrNarration)
     ? scenesOrNarration
       .map(scene => ({ text: cleanSpeech(scene?.narration), delivery: normalizeDelivery(scene?.delivery) }))
@@ -253,7 +254,7 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const labels = clipPaths.map((_, index) => `[part${index}]`).join('');
   const filter = [
     ...prepared,
-    `${labels}concat=n=${clipPaths.length}:v=0:a=1,highpass=f=55,lowpass=f=11200,equalizer=f=105:t=q:w=1.0:g=4.5,equalizer=f=720:t=q:w=1.2:g=1.2,equalizer=f=3050:t=q:w=1:g=-3.4,acompressor=threshold=-19dB:ratio=1.55:attack=22:release=220,loudnorm=I=-17:LRA=12:TP=-1.5[voice]`,
+    `${labels}concat=n=${clipPaths.length}:v=0:a=1,asetrate=44160,aresample=48000,atempo=1.08696,highpass=f=48,lowpass=f=10400,equalizer=f=92:t=q:w=0.9:g=5.8,equalizer=f=185:t=q:w=1.1:g=2.2,equalizer=f=2650:t=q:w=1:g=-2.6,acompressor=threshold=-20dB:ratio=1.7:attack=18:release=240,loudnorm=I=-17:LRA=11:TP=-1.5[voice]`,
   ].join(';');
   await run('ffmpeg', [
     '-y', ...inputs,
@@ -266,26 +267,31 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
 
 export async function createCoverFrame(workDir, coverPath, title, deck) {
   const brandFile = path.join(workDir, 'cover-brand.txt');
+  const showFile = path.join(workDir, 'cover-show.txt');
   const titleFile = path.join(workDir, 'cover-title.txt');
   const deckFile = path.join(workDir, 'cover-deck.txt');
   const out = path.join(workDir, 'cover-framed.jpg');
-  await fs.writeFile(brandFile, 'EXCLUSIVA  ·  ¿CÓMO ASÍ?', 'utf8');
-  await fs.writeFile(titleFile, wrapCoverText(title, 16, 3).toUpperCase(), 'utf8');
-  await fs.writeFile(deckFile, wrapCoverText(deck || 'EL CHISME QUE NADIE VIO VENIR', 27, 2).toUpperCase(), 'utf8');
+  await fs.writeFile(brandFile, 'MALA FAMA PRESENTA', 'utf8');
+  await fs.writeFile(showFile, '¿CÓMO ASÍ?', 'utf8');
+  await fs.writeFile(titleFile, wrapCoverText(title, 17, 3).toUpperCase(), 'utf8');
+  await fs.writeFile(deckFile, wrapCoverText(deck || 'EL EGO ENTRÓ PRIMERO', 25, 2).toUpperCase(), 'utf8');
   const filter = [
     'scale=720:1280:force_original_aspect_ratio=increase',
     'crop=720:1280',
-    'eq=contrast=1.10:saturation=1.18:brightness=-0.015',
-    'vignette=PI/5',
-    'drawbox=x=0:y=0:w=720:h=1280:color=black@0.07:t=fill',
-    'drawbox=x=38:y=54:w=360:h=58:color=black@0.82:t=fill',
-    'drawbox=x=38:y=54:w=9:h=58:color=0xCBFF33@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${brandFile}:fontcolor=0xCBFF33:fontsize=24:x=62:y=68:shadowcolor=black@0.9:shadowx=2:shadowy=2`,
-    'drawbox=x=28:y=660:w=664:h=586:color=black@0.80:t=fill',
-    'drawbox=x=42:y=690:w=10:h=480:color=0xCBFF33@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=54:x=76:y=720:line_spacing=10:shadowcolor=black@0.95:shadowx=3:shadowy=3`,
-    'drawbox=x=76:y=1025:w=180:h=6:color=0xCBFF33@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:textfile=${deckFile}:fontcolor=0xDDFE73:fontsize=26:x=76:y=1058:line_spacing=8:shadowcolor=black@0.95:shadowx=2:shadowy=2`,
+    'eq=contrast=1.16:saturation=1.20:brightness=-0.025',
+    'vignette=PI/4.4',
+    'drawbox=x=0:y=0:w=720:h=1280:color=0x071018@0.10:t=fill',
+    'drawbox=x=30:y=42:w=392:h=54:color=black@0.82:t=fill',
+    'drawbox=x=30:y=42:w=8:h=54:color=0xCBFF33@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${brandFile}:fontcolor=0xCBFF33:fontsize=22:x=54:y=57:shadowcolor=black@0.95:shadowx=2:shadowy=2`,
+    'drawbox=x=510:y=42:w=180:h=54:color=0xB51570@0.92:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=22:x=526:y=57:shadowcolor=black@0.9:shadowx=2:shadowy=2`,
+    'drawbox=x=24:y=805:w=672:h=431:color=0x07090D@0.78:t=fill',
+    'drawbox=x=24:y=805:w=672:h=8:color=0xCBFF33@1:t=fill',
+    'drawbox=x=43:y=840:w=10:h=274:color=0xB51570@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=58:x=76:y=842:line_spacing=8:shadowcolor=black@0.98:shadowx=3:shadowy=3`,
+    'drawbox=x=76:y=1128:w=520:h=2:color=white@0.26:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${deckFile}:fontcolor=0xDFFF75:fontsize=25:x=76:y=1150:line_spacing=7:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
   ].join(',');
   await run('ffmpeg', ['-y', '-i', coverPath, '-vf', filter, '-frames:v', '1', '-q:v', '2', out]);
   return out;
@@ -299,106 +305,103 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
   writeWavHeader(buffer, sampleRate, sampleCount);
 
   const profile = categoryProfile(category);
-  const seed = hashString(`${category}|${seedText}`) || 1;
-  const bpm = Math.max(118, profile.bpm + Math.round(profile.tension * 5) + (seed % 4));
+  const seed = hashString(`${category}|${seedText}|dark-noir-v2`) || 1;
+  const bpm = Math.max(106, Math.min(118, 106 + Math.round(profile.tension * 8) + (seed % 4)));
   const beatSeconds = 60 / bpm;
   const barSeconds = beatSeconds * 4;
-  const phraseSeconds = barSeconds * 2;
-  const bassSteps = [0, 0, 3, 5, 0, 7, 3, 1];
-  const bassRoot = profile.rootMidi - 12;
+  const phraseSeconds = barSeconds * 4;
+  const root = profile.rootMidi - 24;
+  const bassPattern = [0, 0, 0, 3, 0, 0, 6, 5, 0, 0, 3, 1, 0, 7, 6, 3];
+  const kickPattern = new Set([0, 6, 8, 11, 14]);
+  const hatPattern = new Set([0, 2, 4, 7, 8, 10, 12, 15]);
   let noiseState = seed;
-  let previousNoise = 0;
-  let smoothNoise = 0;
+  let lastNoise = 0;
+  let lowNoise = 0;
 
   for (let i = 0; i < sampleCount; i += 1) {
     const t = i / sampleRate;
     const beatFloat = t / beatSeconds;
     const beatIndex = Math.floor(beatFloat);
     const beatPhase = beatFloat % 1;
-    const eighthFloat = t / (beatSeconds / 2);
-    const eighthIndex = Math.floor(eighthFloat);
-    const eighthPhase = eighthFloat % 1;
-    const barPhase = (t % barSeconds) / barSeconds;
-    const phrasePhaseSeconds = t % phraseSeconds;
-    const phraseIndex = Math.floor(t / phraseSeconds);
+    const sixteenthFloat = t / (beatSeconds / 4);
+    const sixteenthIndex = Math.floor(sixteenthFloat);
+    const sixteenthStep = sixteenthIndex % 16;
+    const sixteenthPhase = sixteenthFloat % 1;
+    const barIndex = Math.floor(t / barSeconds);
+    const phraseTime = t % phraseSeconds;
 
     noiseState = (Math.imul(noiseState, 1664525) + 1013904223) >>> 0;
     const noise = (noiseState / 0xffffffff) * 2 - 1;
-    const brightNoise = noise - previousNoise * 0.82;
-    previousNoise = noise;
-    smoothNoise += (noise - smoothNoise) * 0.008;
+    const brightNoise = noise - lastNoise * 0.92;
+    lastNoise = noise;
+    lowNoise += (noise - lowNoise) * 0.0025;
 
-    const fadeIn = Math.min(1, t / 0.10);
-    const fadeOut = Math.min(1, Math.max(0, (duration - t) / 1.2));
+    const fadeIn = Math.min(1, t / 0.16);
+    const fadeOut = Math.min(1, Math.max(0, (duration - t) / 0.8));
     const globalEnv = fadeIn * fadeOut;
 
-    // Bajo con actitud de late-night: insistente, sincopado y nada sentimental.
-    const bassStep = bassSteps[beatIndex % bassSteps.length];
-    const bassFreq = midiToFreq(bassRoot + bassStep);
-    const bassEnv = Math.exp(-beatPhase * 4.8);
-    const bass = (
-      Math.sin(2 * Math.PI * bassFreq * t) * 0.105 +
-      Math.sin(2 * Math.PI * bassFreq * 2 * t) * 0.025
-    ) * bassEnv;
+    // Subgrave 808: pocas notas, mucho espacio y una caída corta al inicio.
+    const bassStep = bassPattern[beatIndex % bassPattern.length];
+    const bassFreq = midiToFreq(root + bassStep);
+    const bassEnv = Math.exp(-beatPhase * 2.35);
+    const bassPhase = 2 * Math.PI * bassFreq * t;
+    const sub = (Math.sin(bassPhase) * 0.145 + Math.sin(bassPhase * 2) * 0.020) * bassEnv;
 
-    // Kick seco en cada pulso y clap burlón en dos y cuatro.
-    const kickFreq = 50 + 54 * Math.exp(-beatPhase * 15);
-    const kick = Math.sin(2 * Math.PI * kickFreq * t) * Math.exp(-beatPhase * 16) * 0.18;
-    const backbeat = beatIndex % 4 === 1 || beatIndex % 4 === 3;
-    const clap = backbeat ? brightNoise * Math.exp(-beatPhase * 34) * 0.078 : 0;
-
-    // Hi-hat nervioso: mantiene avance aun debajo de la narración.
-    const hatAccent = eighthIndex % 2 === 0 ? 0.030 : 0.018;
-    const hat = brightNoise * Math.exp(-eighthPhase * 52) * hatAccent;
-
-    // Cuerda grave corta: tensión de chisme sin volver a documental solemne.
-    const drone = (
-      Math.sin(2 * Math.PI * midiToFreq(bassRoot - 5) * t) * 0.020 +
-      smoothNoise * 0.010
-    ) * (0.72 + 0.28 * Math.sin(2 * Math.PI * 0.10 * t));
-
-    // Golpe cómico de metales al inicio de cada frase musical.
-    const stingT = phrasePhaseSeconds;
-    const stingEnv = Math.exp(-stingT * 5.6);
-    const stingBase = midiToFreq(profile.rootMidi + (phraseIndex % 2 ? 1 : 0));
-    const brass = (
-      Math.sin(2 * Math.PI * stingBase * t) +
-      Math.sin(2 * Math.PI * stingBase * 1.5 * t) * 0.55 +
-      Math.sin(2 * Math.PI * stingBase * 2 * t) * 0.28
-    ) * stingEnv * 0.082;
-
-    // Riser, corte de aire y obturador: preparan y cobran cada remate.
-    const riserStart = phraseSeconds - beatSeconds * 1.35;
-    const riserProgress = phrasePhaseSeconds > riserStart
-      ? (phrasePhaseSeconds - riserStart) / (phraseSeconds - riserStart)
+    // Kick grave sincopado; rim seco en dos y cuatro.
+    const kickOn = kickPattern.has(sixteenthStep);
+    const kickFreq = 43 + 78 * Math.exp(-sixteenthPhase * 18);
+    const kick = kickOn
+      ? Math.sin(2 * Math.PI * kickFreq * t) * Math.exp(-sixteenthPhase * 21) * 0.24
       : 0;
-    const riser = brightNoise * (riserProgress ** 2.2) * 0.065;
-    const prePunchDip = phrasePhaseSeconds > phraseSeconds - 0.095 ? 0.08 : 1;
-    const shutter = beatIndex % 8 === 6
-      ? (brightNoise * 0.070 + Math.sin(2 * Math.PI * 1450 * t) * 0.018) * Math.exp(-beatPhase * 55)
+    const rimOn = sixteenthStep === 4 || sixteenthStep === 12;
+    const rim = rimOn
+      ? (brightNoise * 0.050 + Math.sin(2 * Math.PI * 1680 * t) * 0.025) * Math.exp(-sixteenthPhase * 48)
       : 0;
 
-    // Pequeño rayón satírico cada cuatro compases; breve para no cansar.
-    const scratchPhase = t % (barSeconds * 4);
-    const scratch = scratchPhase < 0.16
-      ? brightNoise * Math.sin(2 * Math.PI * (1900 - scratchPhase * 7800) * t) * Math.exp(-scratchPhase * 17) * 0.028
-      : 0;
+    // Hats con huecos: avance moderno sin ametralladora constante.
+    const hatOn = hatPattern.has(sixteenthStep);
+    const hat = hatOn ? brightNoise * Math.exp(-sixteenthPhase * 70) * (sixteenthStep % 4 === 0 ? 0.024 : 0.013) : 0;
 
-    // Cierre seco: el programa termina, no se desvanece pidiendo permiso.
-    const finalStart = Math.max(0, duration - 1.7);
+    // Pulso noir: dos notas graves desafinadas y una textura respirando.
+    const padRoot = midiToFreq(root - 5);
+    const pad = (
+      Math.sin(2 * Math.PI * padRoot * t) * 0.020 +
+      Math.sin(2 * Math.PI * padRoot * 1.498 * t) * 0.011 +
+      lowNoise * 0.009
+    ) * (0.58 + 0.42 * Math.sin(2 * Math.PI * 0.075 * t));
+
+    // Campana procesada, una vez por compás; firma, no melodía de ascensor.
+    const bellTime = t % barSeconds;
+    const bellNote = midiToFreq(profile.rootMidi + (barIndex % 4 === 3 ? 1 : 0));
+    const bellEnv = Math.exp(-bellTime * 4.6);
+    const bell = (
+      Math.sin(2 * Math.PI * bellNote * t) * 0.020 +
+      Math.sin(2 * Math.PI * bellNote * 2.71 * t) * 0.009
+    ) * bellEnv;
+
+    // Tensión antes del remate y golpe de subgrave al cerrar cada frase.
+    const riserStart = phraseSeconds - beatSeconds * 1.5;
+    const riserProgress = phraseTime > riserStart
+      ? (phraseTime - riserStart) / (phraseSeconds - riserStart)
+      : 0;
+    const riser = brightNoise * (riserProgress ** 2.7) * 0.040;
+    const silencePocket = phraseTime > phraseSeconds - 0.115 ? 0.03 : 1;
+    const impactTime = phraseTime;
+    const impact = (
+      Math.sin(2 * Math.PI * 37 * t) * 0.24 +
+      brightNoise * 0.045
+    ) * Math.exp(-impactTime * 7.2);
+
+    // Final seco con caída subgrave: termina con autoridad.
+    const finalStart = Math.max(0, duration - 1.15);
     const finalT = Math.max(0, t - finalStart);
     const finalHit = t >= finalStart
-      ? (
-        Math.sin(2 * Math.PI * 58 * t) * 0.20 +
-        Math.sin(2 * Math.PI * 116 * t) * 0.055 +
-        brightNoise * 0.030
-      ) * Math.exp(-finalT * 2.8)
+      ? (Math.sin(2 * Math.PI * 34 * t) * 0.27 + brightNoise * 0.030) * Math.exp(-finalT * 3.7)
       : 0;
 
-    const grooveLift = 0.92 + 0.12 * Math.sin(2 * Math.PI * barPhase);
-    let sample = (bass + kick + clap + hat + drone + brass + riser + shutter + scratch + finalHit)
-      * globalEnv * grooveLift * prePunchDip;
-    sample = Math.tanh(sample * 1.55) * 0.82;
+    let sample = (sub + kick + rim + hat + pad + bell + riser + impact + finalHit)
+      * globalEnv * silencePocket;
+    sample = Math.tanh(sample * 1.42) * 0.78;
     const intSample = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
     buffer.writeInt16LE(intSample, 44 + i * 2);
   }
@@ -479,7 +482,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]highpass=f=35,lowpass=f=9000,volume=0.62[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=7.5:attack=8:release=260[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]highpass=f=28,lowpass=f=8200,volume=0.48,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.030:ratio=6.0:attack=10:release=340[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
