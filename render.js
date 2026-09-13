@@ -188,7 +188,7 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   if (lines.length === 0) throw new Error('narration_required');
 
   const blocks = [];
-  const actSizes = [1, 2, 2, 2, 2, 2, 2, 3];
+  const actSizes = [1, 4, 4, 4, 3];
   for (let index = 0, actIndex = 0; index < lines.length; actIndex += 1) {
     const size = Math.min(actSizes[actIndex] || 3, lines.length - index);
     const group = lines.slice(index, index + size);
@@ -214,11 +214,11 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: -1 + tensionLift, pitch: 10, volume: 13 },
-    veneno: { rate: -10 + tensionLift, pitch: 2, volume: 9 },
-    suspenso: { rate: -20 + tensionLift, pitch: -6, volume: 7 },
-    incredula: { rate: -4 + tensionLift, pitch: 12, volume: 12 },
-    remate: { rate: -13 + tensionLift, pitch: -3, volume: 13 },
+    golpe: { rate: -3 + tensionLift, pitch: 3, volume: 11 },
+    veneno: { rate: -6 + tensionLift, pitch: 0, volume: 9 },
+    suspenso: { rate: -10 + tensionLift, pitch: -2, volume: 8 },
+    incredula: { rate: -4 + tensionLift, pitch: 4, volume: 11 },
+    remate: { rate: -7 + tensionLift, pitch: -1, volume: 12 },
   };
 
   const pauseAfter = (block, index) => {
@@ -320,48 +320,50 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
     const preRevealDip = phrasePos > phraseSeconds - 0.24 ? 0.58 : 1;
 
     const kickEnv = Math.exp(-beatPos * 12) * ((beatIndex % 4 === 0 || beatIndex % 4 === 2) ? 1 : 0.42);
-    const kick = Math.sin(2 * Math.PI * (52 + 35 * (1 - beatPos)) * t) * kickEnv * 0.19;
+    const kick = Math.sin(2 * Math.PI * (52 + 35 * (1 - beatPos)) * t) * kickEnv * 0.23;
 
     const snareGate = (beatIndex % 4 === 1 || beatIndex % 4 === 3) ? Math.exp(-beatPos * 18) : 0;
     noiseState = (Math.imul(noiseState, 1664525) + 1013904223) >>> 0;
     const noise = ((noiseState / 0xffffffff) * 2 - 1);
-    const snare = noise * snareGate * (0.075 + profile.tension * 0.035);
+    const snare = noise * snareGate * (0.11 + profile.tension * 0.04);
 
     const hatGate = Math.exp(-halfBeatPos * 30);
-    const hat = noise * hatGate * (0.025 + profile.brightness * 0.018);
+    const hat = noise * hatGate * (0.014 + profile.brightness * 0.01);
 
     const bassGate = 0.35 + 0.65 * Math.exp(-beatPos * 3.5);
-    const bass = (Math.sin(2 * Math.PI * bassFreq * t) + 0.22 * Math.sin(2 * Math.PI * bassFreq * 2 * t)) * bassGate * 0.085;
+    const bass = (Math.sin(2 * Math.PI * bassFreq * t) + 0.22 * Math.sin(2 * Math.PI * bassFreq * 2 * t)) * bassGate * 0.10;
 
     const padLfo = 0.65 + 0.35 * Math.sin(2 * Math.PI * 0.08 * t);
     const pad = (
       Math.sin(2 * Math.PI * midiToFreq(root) * t) +
       0.7 * Math.sin(2 * Math.PI * thirdFreq * t) +
       0.55 * Math.sin(2 * Math.PI * fifthFreq * t)
-    ) * padLfo * (0.022 + profile.brightness * 0.012);
+    ) * padLfo * (0.010 + profile.brightness * 0.005);
 
     const pluckEnv = Math.exp(-halfBeatPos * (5.5 + profile.tension * 2));
-    const pluck = Math.sin(2 * Math.PI * motifFreq * t) * pluckEnv * (0.025 + profile.brightness * 0.03);
+    const pluck = Math.sin(2 * Math.PI * motifFreq * t) * pluckEnv * (0.010 + profile.brightness * 0.012);
 
     const glitchPulse = profile.tension > 0.75 && ((beatIndex + seed) % 7 === 0)
-      ? Math.sin(2 * Math.PI * (motifFreq * 1.5) * t) * Math.exp(-beatPos * 16) * 0.032
+      ? Math.sin(2 * Math.PI * (motifFreq * 1.5) * t) * Math.exp(-beatPos * 16) * 0.018
       : 0;
 
     // Mini subidas, cortes e impactos cada cuatro compases: acompañan el giro
     // del chisme y se intensifican en perfiles tensos sin competir con la voz.
     const riserStart = phraseSeconds - 1.35;
     const riserProgress = phrasePos > riserStart ? (phrasePos - riserStart) / (phraseSeconds - riserStart) : 0;
-    const riser = noise * (riserProgress ** 2) * (0.012 + profile.tension * 0.042);
+    const riser = noise * (riserProgress ** 2) * (0.018 + profile.tension * 0.055);
     const impactEnv = t > 1 ? Math.exp(-phrasePos * 7.5) : 0;
     const impact = (
-      Math.sin(2 * Math.PI * 46 * t) * 0.16 +
-      noise * 0.055
+      Math.sin(2 * Math.PI * 46 * t) * 0.20 +
+      noise * 0.07
     ) * impactEnv * (0.55 + profile.tension * 0.65);
     const dramaStab = profile.tension > 0.6 && beatIndex % 8 === 0
-      ? Math.sin(2 * Math.PI * midiToFreq(root + 12) * t) * Math.exp(-beatPos * 9) * 0.038
+      ? Math.sin(2 * Math.PI * midiToFreq(root + 12) * t) * Math.exp(-beatPos * 9) * 0.055
       : 0;
 
-    let sample = (kick + snare + hat + bass + pad + pluck + glitchPulse + riser + impact + dramaStab) * globalEnv * sectionLift * preRevealDip;
+    const shutterGate = beatIndex % 12 === 6 ? Math.exp(-beatPos * 42) : 0;
+    const cameraShutter = (noise * 0.07 + Math.sin(2 * Math.PI * 1800 * t) * 0.025) * shutterGate;
+    let sample = (kick + snare + hat + bass + pad + pluck + glitchPulse + riser + impact + dramaStab + cameraShutter) * globalEnv * sectionLift * preRevealDip;
     sample = Math.tanh(sample * 1.45) * 0.72;
     const intSample = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
     buffer.writeInt16LE(intSample, 44 + i * 2);
@@ -373,7 +375,7 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
 
 export async function renderReel({ workDir, coverPath, scenePaths, scenes, narrationPath, category, title, coverDeck }) {
   const narrationDuration = await probeDuration(narrationPath);
-  const totalDuration = Math.max(55, Math.min(70, Math.ceil((narrationDuration || 62) + 1.4)));
+  const totalDuration = Math.max(55, Math.ceil((narrationDuration || 62) + 2.2));
   const coverDuration = 1.35;
   const visualDuration = totalDuration - coverDuration;
   const rawWeights = scenes.map(scene => {
@@ -406,7 +408,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]volume=0.52[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=8.5:attack=8:release=320[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]highpass=f=45,lowpass=f=11000,volume=0.44[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.025:ratio=8.5:attack=8:release=320[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
