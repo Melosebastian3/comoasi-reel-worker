@@ -168,8 +168,8 @@ function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
     ? 'La Comadre es siempre la misma presentadora ficticia latina: bob negro corto con un mechón verde neón, gafas cat-eye, traje sastre magenta, guantes lima y micrófono verde. Debe estar actuando dentro de la escena, nunca posando como retrato.'
     : 'No mostrar a La Comadre en esta escena; concentrarse en el protagonista, la acción o la prueba.';
   const famous = protagonist
-    ? `La figura pública ${protagonist} debe ser reconocible de inmediato mediante sus rasgos reales, sin sustituirla por una persona genérica.`
-    : 'Si existe una figura pública central, debe ser reconocible de inmediato; no usar rostros genéricos.';
+    ? `La figura pública ${protagonist} debe ser reconocible de inmediato: conservar forma del rostro, peinado, mirada y rasgos icónicos, pero exagerarlos con intención cómica y expresión escandalosa; jamás sustituirla por una persona genérica.`
+    : 'Si existe una figura pública central, debe ser reconocible de inmediato y aparecer como caricatura exagerada; nunca usar rostros genéricos.';
   return [
     'Fotograma vertical 9:16 de una secuencia de chisme visual de ritmo alto.',
     visualBeatDirections[index % visualBeatDirections.length],
@@ -177,8 +177,10 @@ function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
     identity,
     `Tema: ${topic}.`,
     `Acción específica de esta escena: ${String(scene?.visualPrompt || scene?.narration || '').trim()}.`,
-    'Estética: fotografía editorial cinematográfica mezclada con caricatura de revista de celebridades, lente angular, capas en primer plano, profundidad, movimiento congelado, contraste fuerte y luz dramática.',
-    'Prohibido: retrato frontal estático, persona centrada posando, fondo vacío, póster, cuadrícula, díptico, viñetas, texto, titulares legibles, logos o marcas de agua.',
+    'ESTILO OBLIGATORIO: caricatura editorial satírica, exagerada y claramente burlona dese de revista de escándalos; cabeza y gestos ligeramente sobredimensionados, cejas, boca, mirada y pose llevadas al máximo, energía absurda y elegante. Debe parecer una ilustración premium dibujada para reírse del drama, no una fotografía ni un retrato respetuoso.',
+    'Mantener continuidad visual: tinta negra expresiva, recortes de papel, textura impresa de semitono, paleta magenta, verde lima, crema y azul noche, iluminación cinematográfica, lente angular, profundidad y movimiento congelado.',
+    'La burla debe recaer en el ego, la pose, el lujo, el dramatismo o la contradicción pública del personaje; no caricaturizar raza, nacionalidad, religión, discapacidad, cuerpo ni otras características protegidas.',
+    'Prohibido: fotorrealismo, anime, rostro genérico, retrato frontal estático, persona centrada posando, fondo vacío, póster, cuadrícula, díptico, viñetas, texto, titulares legibles, logos o marcas de agua.',
     'No inventar delitos, intimidad ni hechos dañinos: representar controversias no verificadas mediante reacción, contexto público o metáfora visual.'
   ].join(' ');
 }
