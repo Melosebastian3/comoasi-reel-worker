@@ -53,6 +53,35 @@ function storyValidationIssue(story) {
   if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '')))) return 'delivery';
   const stats = storyLanguageStats(story);
   if (stats.english >= 6 && stats.english > Math.max(5, Math.ceil(stats.spanish * 0.55))) return 'language';
+
+  const lines = story.scenes.map(scene => String(scene?.narration || '').replace(/\s+/g, ' ').trim());
+  if (lines.some(line => !line)) return 'empty_scene';
+  const narration = lines.join(' ');
+  const words = narration.split(/\s+/).filter(Boolean).length;
+  if (words < 155 || words > 275) return 'runtime';
+  if (lines[0].split(/\s+/).length > 24) return 'weak_hook';
+  if (/\?$/.test(lines[15]) || lines[15].split(/\s+/).length < 5) return 'open_ending';
+  const questions = (narration.match(/\?/g) || []).length;
+  if (questions > 3) return 'too_many_questions';
+
+  const stalePhrases = [
+    /para entender (esto|lo ocurrido)/i,
+    /la historia comienza/i,
+    /en este contexto/i,
+    /cabe destacar/i,
+    /por si fuera poco/i,
+    /pero eso no es todo/i,
+    /las redes (sociales )?(estallaron|explotaron)/i,
+    /se desató la polémica/i,
+    /sí,? leíste bien/i,
+    /como si fuera poco/i,
+    /solo el tiempo dirá/i,
+    /¿qué opinas\??$/i,
+  ];
+  if (stalePhrases.some(pattern => pattern.test(narration))) return 'generic_news_voice';
+
+  const roastDeliveries = story.scenes.filter(scene => ['veneno', 'remate'].includes(String(scene?.delivery || ''))).length;
+  if (roastDeliveries < 5 || String(story.scenes[15]?.delivery || '') !== 'remate') return 'not_enough_payoffs';
   return null;
 }
 
@@ -144,22 +173,22 @@ async function ensureNoHardDuplicate(topicData, force = false) {
 }
 
 const visualBeatDirections = [
-  'Golpe de apertura: primerísimo primer plano del famoso reaccionando en plena acción; Mala Fama irrumpe desde un borde señalando la evidencia, composición diagonal y sensación de cámara sorprendida.',
-  'Paparazzi: el famoso atrapado en medio de una acción pública concreta, flashes agresivos, gente cruzando el primer plano y profundidad real.',
-  'Prueba visual: plano macro de un objeto clave del relato en manos humanas; el famoso desenfocado al fondo reaccionando, sin texto legible.',
-  'Reacción: rostro reconocible en un momento de tensión, cámara ladeada, manos y miradas contando el conflicto, fondo vivo.',
-  'Consecuencia: plano general con el famoso pequeño dentro de una situación grande y caótica; acción, extras y elementos en movimiento.',
-  'Mala Fama investiga: plano sobre el hombro frente a una mesa de pruebas visuales; ella gira hacia cámara con expresión de no poder creerlo.',
-  'Escalada: escena pública de conflicto visual, dos fuerzas opuestas dentro del mismo encuadre, movimiento congelado en el punto máximo.',
-  'Internet explota: teléfonos, flashes y reacciones de multitud rodean al famoso; composición inmersiva, nada de collage plano.',
-  'Cambio de poder: contrapicado dramático del protagonista mientras el entorno se desordena; gesto claro y fondo con acción.',
-  'Giro: revelación visual mediante una puerta, cortina u objeto que descubre algo; reacción simultánea del famoso.',
-  'Mala Fama reacciona: primer plano expresivo con un objeto del caso en una mano; al fondo sucede la consecuencia, no posar mirando al frente.',
-  'Choque: dos personajes reconocibles en tensión dentro de un espacio público; lenguaje corporal fuerte, sin inventar contacto físico.',
-  'Daño colateral: consecuencias del escándalo mostradas con una metáfora física dinámica, el protagonista presente y reconocible.',
-  'Después del golpe: famoso en un entorno realista inmediatamente posterior al evento, gesto humano, fotógrafos o público en movimiento.',
-  'La pieza que cierra el caso: evidencia visual dominante en primer plano y protagonista reaccionando detrás; iluminación de revelación.',
-  'Veredicto: Mala Fama cierra mirando a cámara con gesto definitivo mientras detrás vemos la consecuencia final; encuadre icónico de cierre.'
+  'Cold open de comedia: Mala Fama acciona una palanca, corta una cinta o destapa una evidencia mientras el famoso queda atrapado en la consecuencia visual del caso. Composición diagonal, acción congelada y golpe inmediato; evitar boca abierta genérica.',
+  'Hecho uno: recrear una acción pública verificable del famoso con entorno, objetos y extras específicos. El humor nace de una escala absurdamente exagerada, no de una pose.',
+  'Primer roast visual: convertir la contradicción pública en una metáfora física única —ego inflable, pedestal inestable, alfombra roja convertida en trampa o lujo que se derrumba— con el famoso intentando mantener la dignidad.',
+  'Prueba: plano macro del objeto o gesto decisivo invadiendo el encuadre; detrás, el famoso intenta ocultarlo, arreglarlo o fingir normalidad. Expresión distinta a sorpresa.',
+  'Escalada: el problema crece literalmente alrededor del protagonista como una máquina fuera de control, una montaña de consecuencias o un escenario que se desarma.',
+  'Mala Fama en su mesa de autopsia del chisme: pincha el ego inflable del famoso con un alfiler verde mientras señala una prueba real. Sonrisa contenida, no cara de susto.',
+  'Hecho dos: escena pública concreta vista con lente angular y movimiento; el famoso negocia, huye, presume o sostiene la fachada según el relato.',
+  'Segundo roast visual: una comparación cruel del guion se vuelve una situación surrealista coherente en un solo espacio. Humor de estatus y contradicción, jamás collage.',
+  'Giro de poder: el famoso sobre un pedestal demasiado alto que comienza a inclinarse mientras el entorno sigue con indiferencia. Gesto de control perdido, boca cerrada.',
+  'Revelación: una puerta, telón, caja fuerte u objeto del caso descubre la pieza faltante; los demás reaccionan de formas diferentes, no todos sorprendidos.',
+  'Mala Fama cobra el chiste: entra en acción con cronómetro, lupa o sello de veredicto y remata la consecuencia al fondo. Mirada de “ya lo sabía”, sonrisa venenosa.',
+  'Choque: personajes reconocibles defienden versiones opuestas mediante lenguaje corporal fuerte en un lugar público; tensión absurda sin inventar agresión física.',
+  'Daño al ego: mostrar reputación, lujo o pose desinflándose como metáfora editorial mientras el hecho comprobado permanece sólido en primer plano.',
+  'Consecuencia real: el protagonista resuelve, niega, abandona o posa después del golpe; fotógrafos y público hacen cosas distintas para crear una escena viva.',
+  'Callback visual: recuperar un objeto o metáfora de la apertura, ahora invertido y más ridículo, para preparar el cierre y hacer sentir que hubo historia.',
+  'Veredicto con punto final: Mala Fama baja una cortina, apaga el micrófono o estampa un sello mientras el famoso queda dentro de la consecuencia final. Imagen icónica, sonrisa seca, cero pregunta abierta.'
 ];
 
 function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
@@ -177,9 +206,10 @@ function buildDynamicVisualPrompt({ scene, index, topic, protagonist }) {
     identity,
     `Tema: ${topic}.`,
     `Acción específica de esta escena: ${String(scene?.visualPrompt || scene?.narration || '').trim()}.`,
-    'ESTILO OBLIGATORIO: caricatura editorial satírica, exagerada y claramente burlona, de revista de escándalos; cabeza y gestos ligeramente sobredimensionados, cejas, boca, mirada y pose llevadas al máximo, energía absurda y elegante. Debe parecer una ilustración premium dibujada para reírse del drama, no una fotografía ni un retrato respetuoso.',
-    'Mantener continuidad visual: tinta negra expresiva, recortes de papel, textura impresa de semitono, paleta magenta, verde lima, crema y azul noche, iluminación cinematográfica, lente angular, profundidad y movimiento congelado.',
-    'La burla debe recaer en el ego, la pose, el lujo, el dramatismo o la contradicción pública del personaje; no caricaturizar raza, nacionalidad, religión, discapacidad, cuerpo ni otras características protegidas.',
+    'ESTILO OBLIGATORIO: caricatura editorial feroz y premium, exagerada como una portada satírica de alto presupuesto. El famoso debe conservar sus rasgos icónicos y ser reconocible, pero con cabeza, ego, accesorios y lenguaje corporal llevados al absurdo. La imagen tiene que contener un chiste visual específico, no limitarse a ilustrar el dato.',
+    'Continuidad visual: tinta negra expresiva, recortes de papel, semitono impreso, paleta magenta, verde lima, crema y azul noche, luz teatral, lente angular, primer plano agresivo, profundidad y movimiento congelado.',
+    'Rotar emociones en toda la secuencia: suficiencia, fastidio, falsa calma, pánico contenido, orgullo herido, cálculo y derrota elegante. Máximo dos escenas con boca abierta de sorpresa; evitar repetir manos en la cara.',
+    'La burla recae en ego, pose, lujo, privilegio, dramatismo, estrategia pública o contradicción verificable; nunca en raza, nacionalidad, religión, discapacidad, cuerpo u otra característica protegida.',
     'Prohibido: fotorrealismo, anime, rostro genérico, retrato frontal estático, persona centrada posando, fondo vacío, póster, cuadrícula, díptico, viñetas, texto, titulares legibles, logos o marcas de agua.',
     'No inventar delitos, intimidad ni hechos dañinos: representar controversias no verificadas mediante reacción, contexto público o metáfora visual.'
   ].join(' ');
@@ -267,17 +297,34 @@ async function processJob(id) {
             editorialMandate: {
               show: '¿Cómo Así?',
               host: 'Mala Fama',
-              identity: 'Conductora latinoamericana elegante, venenosa, despiadadamente graciosa y sin paciencia para el ego de los famosos.',
-              format: 'Sátira de actualidad con energía de show: dato verificado, observación cruel, escalada, consecuencia y veredicto.',
-              mandatoryRules: [
-                'Cada bloque debe sonar dicho por una persona con criterio y mala leche, nunca por un documental.',
-                'Después de cada dato importante debe existir una puñalada cómica breve que ataque ego, pose, hipocresía, lujo absurdo o contradicción pública.',
-                'Usar español latino neutro sin modismos de Colombia, México, Argentina, España ni otro país.',
-                'Nada de insultos vacíos, moralejas, lenguaje escolar, frases de IA ni preguntas abiertas al final.',
-                'No inventar delitos, romances, citas, intenciones ni hechos; la comedia interpreta únicamente información verificada.',
-                'El cierre debe emitir un veredicto contundente y memorable que concluya el caso.'
+              identity: 'Conductora ficticia panlatina: elegante, inteligente, cruel con el ego del poderoso, veloz para detectar hipocresías y cero reverente.',
+              genre: 'Comedia negra de actualidad y roast de celebridades. El dato es la munición; el entretenimiento es el producto.',
+              intensity: storyAttempt === 1 ? 'alto' : storyAttempt === 2 ? 'muy alto' : 'sin piedad editorial',
+              architecture: [
+                'Escena 1: cold open de 7 a 14 palabras con nombre, desastre y una sentencia cómica; nada de contexto.',
+                'Escenas 2-4: tres hechos concretos. Cada hecho recibe un remate breve en la misma frase o en la siguiente.',
+                'Escena 5: primer golpe fuerte: comparación visual inesperada que rebaje la pose, no a la persona.',
+                'Escenas 6-8: Mala Fama conecta pruebas, escala el absurdo y cierra el primer acto con un punchline.',
+                'Escenas 9-11: giro o contradicción. Alternar dato y roast; jamás encadenar más de dos frases informativas.',
+                'Escenas 12-14: consecuencia verificable y el remate más negro permitido por el tema, sin bromear con víctimas ni tragedias.',
+                'Escena 15: callback exacto a una imagen, objeto o frase de la apertura.',
+                'Escena 16: veredicto de Mala Fama, corto, citable y definitivo. Punto final; no pregunta ni invitación a comentar.'
               ],
-              forbiddenTone: ['documental', 'locutora institucional', 'resumen de noticias', 'admiración de fan', 'prudencia aburrida']
+              jokeMechanics: [
+                'Construir al menos seis payoffs claros: exageración, analogía cruel, inversión de estatus, regla de tres, falsa solemnidad y callback.',
+                'La premisa factual debe entenderse antes del chiste; el remate debe ir al final de la frase.',
+                'Atacar ego, pose, privilegio, lujo absurdo, oportunismo o contradicción pública. Punch up, nunca contra víctimas.',
+                'Usar imágenes mentales concretas y comparaciones nuevas. Si un remate podría servir para cualquier famoso, reescribirlo.',
+                'Mala Fama no describe que algo fue escandaloso: demuestra por qué y dicta sentencia.'
+              ],
+              voiceRules: [
+                'Español latinoamericano neutro, natural al oído y sin modismos de Colombia, México, Argentina, España ni otro país.',
+                'Frases hablables de 8 a 18 palabras, contracciones naturales, verbos activos y cambios de cadencia.',
+                'No decir “sí, leíste bien”: es audio. Tampoco “por si fuera poco”, “pero eso no es todo”, “las redes explotaron” ni “se desató la polémica”.',
+                'No usar insultos vacíos, moralejas, lenguaje escolar, frases de IA ni admiración de fan.',
+                'No inventar delitos, romances, citas, intenciones ni hechos; la comedia interpreta únicamente información verificada.'
+              ],
+              forbiddenTone: ['documental', 'locutora institucional', 'resumen de noticias', 'hilo explicativo', 'prudencia aburrida', 'chisme genérico sin remates']
             }
           },
           hostName: 'Mala Fama',
