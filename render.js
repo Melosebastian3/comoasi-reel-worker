@@ -278,22 +278,22 @@ export async function createCoverFrame(workDir, coverPath, title, deck) {
   await fs.writeFile(titleFile, wrapCoverText(title, 14, 4).toUpperCase(), 'utf8');
   await fs.writeFile(deckFile, wrapCoverText(deck || 'EL EGO ENTRÓ PRIMERO', 25, 2).toUpperCase(), 'utf8');
   const filter = [
-    'scale=720:1280:force_original_aspect_ratio=increase',
-    'crop=720:1280',
+    'scale=1080:1920:force_original_aspect_ratio=increase',
+    'crop=1080:1920',
     'eq=contrast=1.16:saturation=1.20:brightness=-0.025',
     'vignette=PI/4.4',
-    'drawbox=x=0:y=0:w=720:h=1280:color=0x071018@0.10:t=fill',
-    'drawbox=x=30:y=42:w=392:h=54:color=black@0.82:t=fill',
-    'drawbox=x=30:y=42:w=8:h=54:color=0xCBFF33@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${brandFile}:fontcolor=0xCBFF33:fontsize=22:x=54:y=57:shadowcolor=black@0.95:shadowx=2:shadowy=2`,
-    'drawbox=x=510:y=42:w=180:h=54:color=0xB51570@0.92:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=22:x=526:y=57:shadowcolor=black@0.9:shadowx=2:shadowy=2`,
-    'drawbox=x=24:y=750:w=672:h=486:color=0x07090D@0.80:t=fill',
-    'drawbox=x=24:y=750:w=672:h=8:color=0xCBFF33@1:t=fill',
-    'drawbox=x=43:y=785:w=10:h=310:color=0xB51570@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=48:x=70:y=785:line_spacing=6:fix_bounds=true:shadowcolor=black@0.98:shadowx=3:shadowy=3`,
-    'drawbox=x=76:y=1128:w=520:h=2:color=white@0.26:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${deckFile}:fontcolor=0xDFFF75:fontsize=25:x=76:y=1150:line_spacing=7:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
+    'drawbox=x=0:y=0:w=1080:h=1920:color=0x071018@0.10:t=fill',
+    'drawbox=x=45:y=63:w=588:h=81:color=black@0.82:t=fill',
+    'drawbox=x=45:y=63:w=12:h=81:color=0xCBFF33@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${brandFile}:fontcolor=0xCBFF33:fontsize=33:x=81:y=86:shadowcolor=black@0.95:shadowx=2:shadowy=2`,
+    'drawbox=x=765:y=63:w=270:h=81:color=0xB51570@0.92:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=33:x=789:y=86:shadowcolor=black@0.9:shadowx=2:shadowy=2`,
+    'drawbox=x=36:y=1125:w=1008:h=729:color=0x07090D@0.80:t=fill',
+    'drawbox=x=36:y=1125:w=1008:h=12:color=0xCBFF33@1:t=fill',
+    'drawbox=x=65:y=1178:w=15:h=465:color=0xB51570@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${titleFile}:fontcolor=white:fontsize=72:x=105:y=1178:line_spacing=9:fix_bounds=true:shadowcolor=black@0.98:shadowx=3:shadowy=3`,
+    'drawbox=x=114:y=1692:w=780:h=3:color=white@0.26:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${deckFile}:fontcolor=0xDFFF75:fontsize=38:x=114:y=1725:line_spacing=10:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
   ].join(',');
   await run('ffmpeg', ['-y', '-i', coverPath, '-vf', filter, '-frames:v', '1', '-q:v', '2', out]);
   return out;
@@ -308,18 +308,18 @@ export async function createOutroFrame(workDir, hostScenePath) {
   await fs.writeFile(hostFile, 'MALA FAMA', 'utf8');
   await fs.writeFile(taglineFile, 'EL CHISME BAJÓ AL INFIERNO', 'utf8');
   const filter = [
-    'scale=720:1280:force_original_aspect_ratio=increase',
-    'crop=720:1280',
+    'scale=1080:1920:force_original_aspect_ratio=increase',
+    'crop=1080:1920',
     'eq=contrast=1.18:saturation=1.22:brightness=-0.035',
     'vignette=PI/4.2',
-    'drawbox=x=0:y=0:w=720:h=1280:color=0x05070A@0.28:t=fill',
-    'drawbox=x=38:y=842:w=644:h=330:color=black@0.82:t=fill',
-    'drawbox=x=38:y=842:w=644:h=8:color=0xCBFF33@1:t=fill',
-    'drawbox=x=38:y=850:w=9:h=322:color=0xB51570@1:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${hostFile}:fontcolor=0xCBFF33:fontsize=27:x=(w-text_w)/2:y=888:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=70:x=(w-text_w)/2:y=944:fix_bounds=true:shadowcolor=black@0.98:shadowx=4:shadowy=4`,
-    'drawbox=x=166:y=1042:w=388:h=3:color=white@0.34:t=fill',
-    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${taglineFile}:fontcolor=0xE6FF91:fontsize=23:x=(w-text_w)/2:y=1075:fix_bounds=true:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
+    'drawbox=x=0:y=0:w=1080:h=1920:color=0x05070A@0.28:t=fill',
+    'drawbox=x=57:y=1263:w=966:h=495:color=black@0.82:t=fill',
+    'drawbox=x=57:y=1263:w=966:h=12:color=0xCBFF33@1:t=fill',
+    'drawbox=x=57:y=1275:w=14:h=483:color=0xB51570@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${hostFile}:fontcolor=0xCBFF33:fontsize=41:x=(w-text_w)/2:y=1332:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=105:x=(w-text_w)/2:y=1416:fix_bounds=true:shadowcolor=black@0.98:shadowx=4:shadowy=4`,
+    'drawbox=x=249:y=1563:w=582:h=5:color=white@0.34:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${taglineFile}:fontcolor=0xE6FF91:fontsize=35:x=(w-text_w)/2:y=1613:fix_bounds=true:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
   ].join(',');
   await run('ffmpeg', ['-y', '-i', hostScenePath, '-vf', filter, '-frames:v', '1', '-q:v', '2', out]);
   return out;
@@ -558,16 +558,16 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const clipPaths = [];
   const motionFor = (index, frames, isCover = false) => {
     if (isCover) {
-      return "scale=900:1600,zoompan=z='min(zoom+0.0012,1.09)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30";
+      return "scale=1350:2400,zoompan=z='min(zoom+0.0012,1.09)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30";
     }
     const safeFrames = Math.max(1, frames);
     const motions = [
-      "scale=940:1680,zoompan=z='min(zoom+0.0042,1.24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
-      `scale=940:1680,zoompan=z='1.16':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
-      "scale=940:1680,zoompan=z='max(1.24-on*0.0035,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30",
-      `scale=940:1680,zoompan=z='1.16':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=720x1280:fps=30`,
-      `scale=940:1680,zoompan=z='1.17':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=720x1280:fps=30`,
-      `scale=940:1680,zoompan=z='if(lt(on,${Math.round(safeFrames * 0.56)}),1.05+on*0.0014,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.40-(ih/zoom/2)':d=1:s=720x1280:fps=30`
+      "scale=1410:2520,zoompan=z='min(zoom+0.0042,1.24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30",
+      `scale=1410:2520,zoompan=z='1.16':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30`,
+      "scale=1410:2520,zoompan=z='max(1.24-on*0.0035,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30",
+      `scale=1410:2520,zoompan=z='1.16':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30`,
+      `scale=1410:2520,zoompan=z='1.17':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=1080x1920:fps=30`,
+      `scale=1410:2520,zoompan=z='if(lt(on,${Math.round(safeFrames * 0.56)}),1.05+on*0.0014,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.40-(ih/zoom/2)':d=1:s=1080x1920:fps=30`
     ];
     return motions[index % motions.length];
   };
@@ -578,12 +578,12 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
     const flash = !isCover && [0, 2, 4, 7, 10, 12, 14].includes(index)
       ? ',fade=t=in:st=0:d=0.065:color=white'
       : '';
-    const colorGrade = isCover ? '' : ',eq=contrast=1.07:saturation=1.12:brightness=-0.01';
+    const colorGrade = isCover ? '' : ',eq=contrast=1.07:saturation=1.12:brightness=-0.01,unsharp=5:5:0.45:5:5:0.0';
     await run('ffmpeg', [
       '-y', '-loop', '1', '-framerate', '30', '-i', inputPath,
       '-t', duration.toFixed(4),
       '-vf', `${motionFor(index, frames, isCover)}${colorGrade}${flash},format=yuv420p`,
-      '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27',
+      '-an', '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
       '-r', '30', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0', out,
     ]);
     clipPaths.push(out);
@@ -612,43 +612,16 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
   const signatureDelayMs = Math.max(0, Math.round((totalDuration - outroDuration + 0.03) * 1000));
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.0,acompressor=threshold=-18dB:ratio=2.0:attack=12:release=220,equalizer=f=2400:t=q:w=1.2:g=2.0,equalizer=f=4200:t=q:w=1.0:g=1.2,asplit=2[voice_mix][voice_sc];[3:a]adelay=${signatureDelayMs},volume=1.22,asplit=2[signature_mix][signature_sc];[voice_sc][signature_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.30,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.024:ratio=10.0:attack=5:release=430[ducked];[voice_mix][signature_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.0,acompressor=threshold=-18dB:ratio=2.0:attack=12:release=220,equalizer=f=2400:t=q:w=1.2:g=2.0,equalizer=f=4200:t=q:w=1.0:g=1.2,asplit=2[voice_mix][voice_sc];[3:a]adelay=${signatureDelayMs},volume=1.22,asplit=2[signature_mix][signature_sc];[voice_sc][signature_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.30,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.024:ratio=10.0:attack=5:release=430[ducked];[voice_mix][signature_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2,aformat=sample_rates=48000:channel_layouts=stereo[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
     '-y', '-i', visualOnly, '-i', narrationPath, '-i', music, '-i', infernalSignature,
     '-filter_complex', audioFilter,
-    '-map', '0:v:0', '-map', '[a]', '-t', String(totalDuration), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '112k', '-ar', '48000', '-movflags', '+faststart', finalPath,
+    '-map', '0:v:0', '-map', '[a]', '-t', String(totalDuration), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-movflags', '+faststart', finalPath,
   ]);
 
   const stat = await fs.stat(finalPath);
-  const maxUploadBytes = 3450000;
-  console.info(`[como-asi] rendered MP4 size: ${stat.size} bytes for ${totalDuration}s`);
-  if (stat.size > maxUploadBytes) {
-    const compact = path.join(workDir, 'final-compact.mp4');
-    const audioKbps = 64;
-    const containerMarginKbps = 18;
-    const targetTotalKbps = Math.floor((maxUploadBytes * 8) / (totalDuration * 1000));
-    const videoKbps = Math.max(140, Math.min(360, targetTotalKbps - audioKbps - containerMarginKbps));
-    const maxRateKbps = Math.max(videoKbps + 20, Math.round(videoKbps * 1.12));
-    const bufferKbps = Math.round(maxRateKbps * 2.2);
-    console.info(`[como-asi] compacting MP4 for JSON transport at ${videoKbps}k video + ${audioKbps}k audio`);
-    await run('ffmpeg', [
-      '-y', '-i', finalPath,
-      '-c:v', 'libx264', '-preset', 'medium',
-      '-b:v', `${videoKbps}k`,
-      '-maxrate', `${maxRateKbps}k`,
-      '-bufsize', `${bufferKbps}k`,
-      '-c:a', 'aac', '-b:a', `${audioKbps}k`,
-      '-movflags', '+faststart', compact,
-    ]);
-    const compactStat = await fs.stat(compact);
-    console.info(`[como-asi] compact MP4 size: ${compactStat.size} bytes; base64 estimate: ${Math.ceil(compactStat.size / 3) * 4} bytes`);
-    if (compactStat.size > 3900000) {
-      throw new Error(`final_video_exceeds_transport_limit:${compactStat.size}`);
-    }
-    return compact;
-  }
-  console.info(`[como-asi] MP4 base64 estimate: ${Math.ceil(stat.size / 3) * 4} bytes`);
+  console.info(`[como-asi] rendered 1080p master: ${stat.size} bytes for ${totalDuration}s`);
   return finalPath;
 }

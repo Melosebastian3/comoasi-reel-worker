@@ -47,10 +47,27 @@ export async function writeBase64File(filePath, base64) {
 
 export async function uploadAsset(assetPath, filePath, contentType) {
   const stat = await fs.stat(filePath);
-  const content = await fs.readFile(filePath, { encoding: 'base64' });
-  console.info(`[como-asi] asset upload started: ${assetPath} (${stat.size} bytes raw, ${content.length} bytes base64)`);
-  const result = await studioCall('/api/assets/write', { path: assetPath, content, contentType }, { timeoutMs: 180000, attempts: 4 });
-  console.info(`[como-asi] asset upload completed: ${assetPath}`);
+  const directLimitBytes = 2400000;
+  console.info(`[como-asi] asset upload started: ${assetPath} (${stat.size} bytes raw)`);
+
+  if (stat.size <= directLimitBytes) {
+    const content = await fs.readFile(filePath, { encoding: 'base64' });
+    const result = await studioCall('/api/assets/write', { path: assetPath, content, contentType }, { timeoutMs: 180000, attempts: 4 });
+    console.info(`[como-asi] asset upload completed: ${assetPath}`);
+    return result;
+  }
+
+  const bytes = await fs.readFile(filePath);
+  const chunkSize = 1500000;
+  const chunkCount = Math.ceil(bytes.length / chunkSize);
+  const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  console.info(`[como-asi] chunked asset upload: ${chunkCount} chunks`);
+  for (let index = 0; index < chunkCount; index += 1) {
+    const content = bytes.subarray(index * chunkSize, Math.min(bytes.length, (index + 1) * chunkSize)).toString('base64');
+    await studioCall('/api/assets/chunk', { uploadId, index, content }, { timeoutMs: 180000, attempts: 5 });
+  }
+  const result = await studioCall('/api/assets/commit', { uploadId, chunkCount, path: assetPath, contentType }, { timeoutMs: 300000, attempts: 3 });
+  console.info(`[como-asi] chunked asset upload completed: ${assetPath}`);
   return result;
 }
 
