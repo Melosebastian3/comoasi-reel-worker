@@ -323,23 +323,84 @@ export async function createOutroFrame(workDir, hostScenePath) {
   return out;
 }
 
-async function createDevilLaugh(workDir) {
-  const textPath = path.join(workDir, 'devil-laugh.txt');
-  const rawPath = path.join(workDir, 'devil-laugh-raw.mp3');
-  const out = path.join(workDir, 'devil-laugh.mp3');
-  await fs.writeFile(textPath, 'Ja... ja... ja... ¡ja, ja, ja!', 'utf8');
-  await synthesizeEdgeTts(
-    'Ja... ja... ja... ¡ja, ja, ja!',
-    'es-MX-JorgeNeural',
-    { rate: -20, pitch: -34, volume: 13 },
-    textPath,
-    rawPath
-  );
-  await run('ffmpeg', [
-    '-y', '-i', rawPath,
-    '-af', 'asetrate=40800,aresample=48000,atempo=1.17647,highpass=f=42,lowpass=f=7200,equalizer=f=92:t=q:w=0.9:g=7,equalizer=f=210:t=q:w=1.1:g=3,aecho=0.82:0.48:55|118:0.24|0.11,acompressor=threshold=-18dB:ratio=1.8:attack=10:release=260,loudnorm=I=-14:LRA=9:TP=-1.2',
-    '-ar', '48000', '-c:a', 'libmp3lame', '-b:a', '112k', out,
-  ]);
+async function createInfernalSignature(workDir) {
+  const out = path.join(workDir, 'infernal-signature.wav');
+  const sampleRate = 48000;
+  const duration = 2.25;
+  const sampleCount = Math.floor(duration * sampleRate);
+  const dry = new Float64Array(sampleCount);
+  let noiseState = 0x6d2b79f5;
+  let lowNoise = 0;
+  let previousNoise = 0;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const t = i / sampleRate;
+    noiseState = (Math.imul(noiseState, 1664525) + 1013904223) >>> 0;
+    const noise = (noiseState / 0xffffffff) * 2 - 1;
+    lowNoise += (noise - lowNoise) * 0.018;
+    const brightNoise = noise - previousNoise * 0.88;
+    previousNoise = noise;
+
+    // Aspiración invertida: abre el sello sin fingir una carcajada humana.
+    const inhaleProgress = Math.min(1, t / 0.62);
+    const inhale = t < 0.62
+      ? (brightNoise * 0.055 + lowNoise * 0.085) * (inhaleProgress ** 2.4)
+      : 0;
+
+    // Golpe subgrave con caída de tono, como una puerta cerrándose en el infierno.
+    const impactT = t - 0.58;
+    const impactFrequency = 32 + 74 * Math.exp(-Math.max(0, impactT) * 8.5);
+    const impact = impactT >= 0
+      ? (
+        Math.sin(2 * Math.PI * impactFrequency * impactT) * 0.42 +
+        brightNoise * 0.10
+      ) * Math.exp(-impactT * 4.8)
+      : 0;
+
+    // Gruñido corto y no verbal: textura de personaje, no TTS diciendo «ja».
+    const growlT = t - 0.68;
+    const growlEnvelope = growlT >= 0 && growlT < 1.02
+      ? Math.sin(Math.PI * Math.min(1, growlT / 0.11)) * Math.exp(-growlT * 1.7)
+      : 0;
+    const growlFrequency = 63 - Math.min(18, Math.max(0, growlT) * 20);
+    const growlPhase = 2 * Math.PI * growlFrequency * Math.max(0, growlT);
+    const growlPulse = 0.58 + 0.42 * Math.sin(2 * Math.PI * 6.2 * Math.max(0, growlT));
+    const growl = growlEnvelope * growlPulse * (
+      Math.sin(growlPhase) * 0.19 +
+      Math.sin(growlPhase * 2.01) * 0.075 +
+      Math.sin(growlPhase * 3.04) * 0.035 +
+      lowNoise * 0.055
+    );
+
+    // Firma metálica disonante: breve, reconocible y con cola.
+    const chimeT = t - 1.24;
+    const chime = chimeT >= 0
+      ? (
+        Math.sin(2 * Math.PI * 389 * chimeT) * 0.050 +
+        Math.sin(2 * Math.PI * 523 * chimeT) * 0.034 +
+        Math.sin(2 * Math.PI * 731 * chimeT) * 0.020
+      ) * Math.exp(-chimeT * 3.8)
+      : 0;
+
+    dry[i] = inhale + impact + growl + chime;
+  }
+
+  const buffer = Buffer.alloc(44 + sampleCount * 2);
+  writeWavHeader(buffer, sampleRate, sampleCount);
+  const echoA = Math.round(sampleRate * 0.095);
+  const echoB = Math.round(sampleRate * 0.215);
+  for (let i = 0; i < sampleCount; i += 1) {
+    const t = i / sampleRate;
+    const tail = Math.min(1, Math.max(0, (duration - t) / 0.30));
+    const wet = dry[i]
+      + (i >= echoA ? dry[i - echoA] * 0.24 : 0)
+      + (i >= echoB ? dry[i - echoB] * 0.12 : 0);
+    const sample = Math.tanh(wet * 1.55) * 0.84 * tail;
+    const intSample = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
+    buffer.writeInt16LE(intSample, 44 + i * 2);
+  }
+
+  await fs.writeFile(out, buffer);
   return out;
 }
 
@@ -472,7 +533,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const sceneDurations = rawWeights.map(value => visualDuration * value / weightTotal);
   const framedCover = await createCoverFrame(workDir, coverPath, title, coverDeck);
   const outroFrame = await createOutroFrame(workDir, scenePaths.at(-1) || coverPath);
-  const devilLaugh = await createDevilLaugh(workDir);
+  const infernalSignature = await createInfernalSignature(workDir);
   const music = await createProceduralMusic(workDir, category, totalDuration, `${title}|${coverDeck}`);
   const concatFile = path.join(workDir, 'visual-clips.txt');
   const visualOnly = path.join(workDir, 'visual.mp4');
@@ -532,12 +593,12 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const laughDelayMs = Math.max(0, Math.round((totalDuration - outroDuration + 0.12) * 1000));
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[3:a]adelay=${laughDelayMs},volume=1.10,asplit=2[laugh_mix][laugh_sc];[voice_sc][laugh_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.48,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.030:ratio=7.0:attack=8:release=390[ducked];[voice_mix][laugh_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const signatureDelayMs = Math.max(0, Math.round((totalDuration - outroDuration + 0.10) * 1000));
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[3:a]adelay=${signatureDelayMs},volume=0.98,asplit=2[signature_mix][signature_sc];[voice_sc][signature_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.48,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.030:ratio=7.0:attack=8:release=390[ducked];[voice_mix][signature_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
-    '-y', '-i', visualOnly, '-i', narrationPath, '-i', music, '-i', devilLaugh,
+    '-y', '-i', visualOnly, '-i', narrationPath, '-i', music, '-i', infernalSignature,
     '-filter_complex', audioFilter,
     '-map', '0:v:0', '-map', '[a]', '-t', String(totalDuration), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '112k', '-ar', '48000', '-movflags', '+faststart', finalPath,
   ]);
