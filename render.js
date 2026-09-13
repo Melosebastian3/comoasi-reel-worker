@@ -297,6 +297,52 @@ export async function createCoverFrame(workDir, coverPath, title, deck) {
   return out;
 }
 
+export async function createOutroFrame(workDir, hostScenePath) {
+  const showFile = path.join(workDir, 'outro-show.txt');
+  const hostFile = path.join(workDir, 'outro-host.txt');
+  const taglineFile = path.join(workDir, 'outro-tagline.txt');
+  const out = path.join(workDir, 'outro-framed.jpg');
+  await fs.writeFile(showFile, '¿CÓMO ASÍ?', 'utf8');
+  await fs.writeFile(hostFile, 'MALA FAMA', 'utf8');
+  await fs.writeFile(taglineFile, 'EL CHISME BAJÓ AL INFIERNO', 'utf8');
+  const filter = [
+    'scale=720:1280:force_original_aspect_ratio=increase',
+    'crop=720:1280',
+    'eq=contrast=1.18:saturation=1.22:brightness=-0.035',
+    'vignette=PI/4.2',
+    'drawbox=x=0:y=0:w=720:h=1280:color=0x05070A@0.28:t=fill',
+    'drawbox=x=38:y=842:w=644:h=330:color=black@0.82:t=fill',
+    'drawbox=x=38:y=842:w=644:h=8:color=0xCBFF33@1:t=fill',
+    'drawbox=x=38:y=850:w=9:h=322:color=0xB51570@1:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${hostFile}:fontcolor=0xCBFF33:fontsize=27:x=(w-text_w)/2:y=888:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${showFile}:fontcolor=white:fontsize=70:x=(w-text_w)/2:y=944:fix_bounds=true:shadowcolor=black@0.98:shadowx=4:shadowy=4`,
+    'drawbox=x=166:y=1042:w=388:h=3:color=white@0.34:t=fill',
+    `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=${taglineFile}:fontcolor=0xE6FF91:fontsize=23:x=(w-text_w)/2:y=1075:fix_bounds=true:shadowcolor=black@0.98:shadowx=2:shadowy=2`,
+  ].join(',');
+  await run('ffmpeg', ['-y', '-i', hostScenePath, '-vf', filter, '-frames:v', '1', '-q:v', '2', out]);
+  return out;
+}
+
+async function createDevilLaugh(workDir) {
+  const textPath = path.join(workDir, 'devil-laugh.txt');
+  const rawPath = path.join(workDir, 'devil-laugh-raw.mp3');
+  const out = path.join(workDir, 'devil-laugh.mp3');
+  await fs.writeFile(textPath, 'Ja... ja... ja... ¡ja, ja, ja!', 'utf8');
+  await synthesizeEdgeTts(
+    'Ja... ja... ja... ¡ja, ja, ja!',
+    'es-MX-JorgeNeural',
+    { rate: -20, pitch: -34, volume: 13 },
+    textPath,
+    rawPath
+  );
+  await run('ffmpeg', [
+    '-y', '-i', rawPath,
+    '-af', 'asetrate=40800,aresample=48000,atempo=1.17647,highpass=f=42,lowpass=f=7200,equalizer=f=92:t=q:w=0.9:g=7,equalizer=f=210:t=q:w=1.1:g=3,aecho=0.82:0.48:55|118:0.24|0.11,acompressor=threshold=-18dB:ratio=1.8:attack=10:release=260,loudnorm=I=-14:LRA=9:TP=-1.2',
+    '-ar', '48000', '-c:a', 'libmp3lame', '-b:a', '112k', out,
+  ]);
+  return out;
+}
+
 export async function createProceduralMusic(workDir, category, duration = 60, seedText = '') {
   const out = path.join(workDir, 'music.wav');
   const sampleRate = 44100;
@@ -412,9 +458,10 @@ export async function createProceduralMusic(workDir, category, duration = 60, se
 
 export async function renderReel({ workDir, coverPath, scenePaths, scenes, narrationPath, category, title, coverDeck }) {
   const narrationDuration = await probeDuration(narrationPath);
-  const totalDuration = Math.max(55, Math.ceil((narrationDuration || 62) + 2.2));
+  const outroDuration = 2.65;
+  const totalDuration = Math.max(58, Math.ceil((narrationDuration || 62) + outroDuration + 0.5));
   const coverDuration = 1.80;
-  const visualDuration = totalDuration - coverDuration;
+  const visualDuration = totalDuration - coverDuration - outroDuration;
   const rawWeights = scenes.map(scene => {
     const requested = Number(scene?.durationSeconds);
     if (Number.isFinite(requested) && requested > 0) return Math.max(1.8, Math.min(4.2, requested));
@@ -424,6 +471,8 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0) || scenePaths.length;
   const sceneDurations = rawWeights.map(value => visualDuration * value / weightTotal);
   const framedCover = await createCoverFrame(workDir, coverPath, title, coverDeck);
+  const outroFrame = await createOutroFrame(workDir, scenePaths.at(-1) || coverPath);
+  const devilLaugh = await createDevilLaugh(workDir);
   const music = await createProceduralMusic(workDir, category, totalDuration, `${title}|${coverDeck}`);
   const concatFile = path.join(workDir, 'visual-clips.txt');
   const visualOnly = path.join(workDir, 'visual.mp4');
@@ -465,6 +514,7 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   for (let index = 0; index < scenePaths.length; index += 1) {
     await makeMotionClip(scenePaths[index], sceneDurations[index], index, false);
   }
+  await makeMotionClip(outroFrame, outroDuration, 99, true);
   await fs.writeFile(
     concatFile,
     clipPaths.map(clipPath => `file '${clipPath.replaceAll("'", "'\\''")}'`).join('\n'),
@@ -475,18 +525,19 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
     '-t', String(totalDuration), '-c:v', 'copy', '-an', visualOnly,
   ]);
 
-  const narrationTarget = totalDuration - 0.45;
+  const narrationTarget = totalDuration - outroDuration - 0.35;
   const narrationTempo = narrationDuration && narrationDuration > narrationTarget
     ? Math.min(1.04, narrationDuration / narrationTarget)
     : 1;
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[2:a]highpass=f=28,lowpass=f=8200,volume=0.48,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][voice_sc]sidechaincompress=threshold=0.030:ratio=6.0:attack=10:release=340[ducked];[voice_mix][ducked]amix=inputs=2:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const laughDelayMs = Math.max(0, Math.round((totalDuration - outroDuration + 0.12) * 1000));
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[3:a]adelay=${laughDelayMs},volume=1.10,asplit=2[laugh_mix][laugh_sc];[voice_sc][laugh_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.48,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.030:ratio=7.0:attack=8:release=390[ducked];[voice_mix][laugh_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
-    '-y', '-i', visualOnly, '-i', narrationPath, '-i', music,
+    '-y', '-i', visualOnly, '-i', narrationPath, '-i', music, '-i', devilLaugh,
     '-filter_complex', audioFilter,
     '-map', '0:v:0', '-map', '[a]', '-t', String(totalDuration), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '112k', '-ar', '48000', '-movflags', '+faststart', finalPath,
   ]);
