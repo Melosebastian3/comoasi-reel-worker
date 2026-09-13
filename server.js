@@ -5,6 +5,7 @@ import { createJob, setJobStage } from './pipeline.js';
 import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
+import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, startAutomationDispatcher } from './metricool-automation.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -227,6 +228,38 @@ app.post('/api/social/publish-all', async (req, res) => {
   }
 });
 
+app.post('/api/metricool/connect', async (req, res) => {
+  try {
+    res.json(await saveMetricoolConnection(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || 'metricool_connection_failed' });
+  }
+});
+
+app.post('/api/metricool/brand', async (req, res) => {
+  try {
+    res.json(await saveMetricoolBrand(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || 'metricool_brand_failed' });
+  }
+});
+
+app.get('/api/automation/status', async (_req, res) => {
+  try {
+    res.json(await automationStatus());
+  } catch (error) {
+    res.status(500).json({ error: error?.message || 'automation_status_failed' });
+  }
+});
+
+app.post('/api/automation/tick', async (_req, res) => {
+  try {
+    res.json(await automationTick());
+  } catch (error) {
+    res.status(500).json({ error: error?.message || 'automation_tick_failed' });
+  }
+});
+
 app.get('/api/runtime-id', (_req, res) => {
   res.json({ project: projectKey, runtimeId: crypto.randomUUID(), time: new Date().toISOString() });
 });
@@ -243,6 +276,7 @@ app.listen(port, async () => {
     if (recovered) console.log(`[como-asi] recovered ${recovered} queued/running job(s)`);
     startQueueDispatcher(5000);
     startPublisherDispatcher(10000);
+    startAutomationDispatcher(60000);
   } catch (error) {
     console.error('[como-asi] recovery scan failed', error);
   }
