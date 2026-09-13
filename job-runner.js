@@ -266,7 +266,7 @@ async function processJob(id) {
     const voicePath = await createNarrationAudio(
       workDir,
       scenes,
-      process.env.TTS_VOICE || 'es-CO-SalomeNeural',
+      process.env.TTS_VOICE || 'es-MX-DaliaNeural',
       topicData.category,
       async (completed, total) => {
         const voiceProgress = 80 + Math.min(6, Math.round((completed / total) * 6));
