@@ -186,15 +186,17 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
       .map(scene => ({ text: cleanSpeech(scene?.narration), delivery: normalizeDelivery(scene?.delivery) }))
       .filter(line => Boolean(line.text))
     : [{ text: cleanSpeech(scenesOrNarration), delivery: 'veneno' }].filter(line => Boolean(line.text));
-  if (lines.length === 0) throw new Error('narration_required');
+  const normalizeLine = value => String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const uniqueLines = lines.filter((line, index) => index === 0 || normalizeLine(line.text) !== normalizeLine(lines[index - 1].text));
+  if (uniqueLines.length === 0) throw new Error('narration_required');
 
   const blocks = [];
   const actSizes = [1, 4, 4, 4, 3];
-  for (let index = 0, actIndex = 0; index < lines.length; actIndex += 1) {
-    const size = Math.min(actSizes[actIndex] || 3, lines.length - index);
-    const group = lines.slice(index, index + size);
+  for (let index = 0, actIndex = 0; index < uniqueLines.length; actIndex += 1) {
+    const size = Math.min(actSizes[actIndex] || 3, uniqueLines.length - index);
+    const group = uniqueLines.slice(index, index + size);
     const isFirst = index === 0;
-    const isLast = index + group.length >= lines.length;
+    const isLast = index + group.length >= uniqueLines.length;
     const delivery = isFirst
       ? 'golpe'
       : isLast
@@ -326,7 +328,7 @@ export async function createOutroFrame(workDir, hostScenePath) {
 async function createInfernalSignature(workDir) {
   const out = path.join(workDir, 'infernal-signature.wav');
   const sampleRate = 48000;
-  const duration = 2.25;
+  const duration = 2.7;
   const sampleCount = Math.floor(duration * sampleRate);
   const dry = new Float64Array(sampleCount);
   let noiseState = 0x6d2b79f5;
@@ -382,7 +384,23 @@ async function createInfernalSignature(workDir) {
       ) * Math.exp(-chimeT * 3.8)
       : 0;
 
-    dry[i] = inhale + impact + growl + chime;
+    // Carcajada corta, grave y claramente audible: tres pulsos descendentes.
+    const laughCenters = [0.86, 1.16, 1.46];
+    let laugh = 0;
+    laughCenters.forEach((center, index) => {
+      const laughT = t - center;
+      const env = laughT >= 0 && laughT < 0.24
+        ? Math.sin(Math.PI * laughT / 0.24) ** 1.2
+        : 0;
+      const frequency = 128 - index * 14 + 7 * Math.sin(2 * Math.PI * 5 * Math.max(0, laughT));
+      const phase = 2 * Math.PI * frequency * Math.max(0, laughT);
+      laugh += env * (
+        Math.sin(phase) * 0.28 +
+        Math.sin(phase * 2.01) * 0.12 +
+        Math.sin(phase * 3.03) * 0.055
+      );
+    });
+    dry[i] = inhale + impact + growl + laugh + chime;
   }
 
   const buffer = Buffer.alloc(44 + sampleCount * 2);
@@ -593,8 +611,8 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const tempoFilter = narrationTempo > 1.0005
     ? `${buildAtempoChain(narrationTempo)},`
     : '';
-  const signatureDelayMs = Math.max(0, Math.round((totalDuration - outroDuration + 0.10) * 1000));
-  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.07,acompressor=threshold=-15dB:ratio=1.65:attack=12:release=180,asplit=2[voice_mix][voice_sc];[3:a]adelay=${signatureDelayMs},volume=0.98,asplit=2[signature_mix][signature_sc];[voice_sc][signature_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.48,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.030:ratio=7.0:attack=8:release=390[ducked];[voice_mix][signature_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
+  const signatureDelayMs = Math.max(0, Math.round((totalDuration - outroDuration + 0.03) * 1000));
+  const audioFilter = `[1:a]${tempoFilter}adelay=50|50,volume=1.0,acompressor=threshold=-18dB:ratio=2.0:attack=12:release=220,equalizer=f=2400:t=q:w=1.2:g=2.0,equalizer=f=4200:t=q:w=1.0:g=1.2,asplit=2[voice_mix][voice_sc];[3:a]adelay=${signatureDelayMs},volume=1.22,asplit=2[signature_mix][signature_sc];[voice_sc][signature_sc]amix=inputs=2:duration=longest:dropout_transition=0[duck_trigger];[2:a]highpass=f=28,lowpass=f=8200,volume=0.30,acompressor=threshold=-18dB:ratio=1.35:attack=18:release=260[musicbed];[musicbed][duck_trigger]sidechaincompress=threshold=0.024:ratio=10.0:attack=5:release=430[ducked];[voice_mix][signature_mix][ducked]amix=inputs=3:duration=longest:dropout_transition=2,loudnorm=I=-14:LRA=11:TP=-1.2[a]`;
 
   const finalPath = path.join(workDir, 'final.mp4');
   await run('ffmpeg', [
