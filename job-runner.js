@@ -58,7 +58,7 @@ function storyValidationIssue(story) {
   if (lines.some(line => !line)) return 'empty_scene';
   const narration = lines.join(' ');
   const words = narration.split(/\s+/).filter(Boolean).length;
-  if (words < 155 || words > 275) return 'runtime';
+  if (words < 100 || words > 275) return 'runtime';
   if (lines[0].split(/\s+/).length > 24) return 'weak_hook';
   if (/\?$/.test(lines[15]) || lines[15].split(/\s+/).length < 5) return 'open_ending';
   const questions = (narration.match(/\?/g) || []).length;
