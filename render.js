@@ -583,7 +583,8 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
       '-y', '-loop', '1', '-framerate', '30', '-i', inputPath,
       '-t', duration.toFixed(4),
       '-vf', `${motionFor(index, frames, isCover)}${colorGrade}${flash},format=yuv420p`,
-      '-an', '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
+      '-an', '-filter_threads', '2', '-threads', '2',
+      '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-x264-params', 'threads=2:lookahead_threads=1',
       '-r', '30', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0', out,
     ]);
     clipPaths.push(out);
