@@ -294,13 +294,18 @@ async function processSlot(slot, config, now) {
     return next;
   }
   if (job.status === 'failed') {
-    if (Number(next.retryCount || 0) < 2) {
+    const failureMessage = clean(job.error).slice(0, 300);
+    const recoveredAssetUpload = /invalid_chunk|\/api\/assets\/(?:write|chunk|commit)/i.test(failureMessage)
+      && next.assetUploadRecovery !== 'chunk-v2';
+    if (Number(next.retryCount || 0) < 2 || recoveredAssetUpload) {
       await query(`update comoasi.reel_jobs set status='queued', stage='queued', progress=0, error=null, completed_at=null, updated_at=now() where id=$1`, [next.jobId]);
-      next.retryCount = Number(next.retryCount || 0) + 1;
+      next.retryCount = recoveredAssetUpload ? Number(next.retryCount || 0) : Number(next.retryCount || 0) + 1;
+      next.assetUploadRecovery = recoveredAssetUpload ? 'chunk-v2' : next.assetUploadRecovery;
       next.status = 'retrying';
+      next.error = null;
     } else {
       next.status = 'failed';
-      next.error = clean(job.error).slice(0, 300);
+      next.error = failureMessage;
     }
     return next;
   }
