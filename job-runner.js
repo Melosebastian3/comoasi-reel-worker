@@ -254,7 +254,7 @@ async function obtainSceneImage({ reelId, scene, index, workDir, topic, protagon
 }
 
 async function processJob(id) {
-  if (running.has(id)) return;
+  if (running.has(id) || running.size >= 1) return;
   running.add(id);
   let workDir;
   try {
@@ -487,13 +487,14 @@ export function startJob(id) {
 }
 
 async function dispatchQueuedJobs() {
+  if (running.size >= 1) return 0;
   const { rows } = await query(
     `select id from comoasi.reel_jobs
       where status='queued'
       order by created_at asc
-      limit 2`
+      limit 1`
   );
-  rows.forEach(row => startJob(row.id));
+  if (rows[0]) startJob(rows[0].id);
   return rows.length;
 }
 
@@ -557,6 +558,6 @@ export async function recoverJobs() {
     console.info(`[como-asi] auto-requeued ${recoveredRenders.length} interrupted render job(s) with bounded resources`);
   }
   const { rows } = await query(`select id from comoasi.reel_jobs where status in ('queued','running') order by created_at asc limit 10`);
-  rows.forEach(row => startJob(row.id));
+  if (rows[0]) startJob(rows[0].id);
   return rows.length;
 }
