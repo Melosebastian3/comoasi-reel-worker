@@ -5,7 +5,7 @@ import { createJob, setJobStage } from './pipeline.js';
 import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
-import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, setAutomationEnabled, startAutomationDispatcher } from './metricool-automation.js';
+import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, scheduleSavedMetricool, setAutomationEnabled, startAutomationDispatcher } from './metricool-automation.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -249,6 +249,16 @@ app.get('/api/automation/status', async (_req, res) => {
     res.json(await automationStatus());
   } catch (error) {
     res.status(500).json({ error: error?.message || 'automation_status_failed' });
+  }
+});
+
+app.post('/api/metricool/schedule-saved', async (req, res) => {
+  try {
+    res.json(await scheduleSavedMetricool(req.body || {}));
+  } catch (error) {
+    const message = error?.message || 'metricool_schedule_failed';
+    const status = message === 'metricool_reconnect_required' ? 401 : 502;
+    res.status(status).json({ error: message });
   }
 });
 
