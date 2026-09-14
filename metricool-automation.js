@@ -115,7 +115,17 @@ export async function setAutomationEnabled(enabled) {
 
 export async function automationStatus() {
   const value = await loadConfig();
-  if (!value) return { enabled: false, connected: false, ready: false, timezone: defaultTimezone, slots: defaultSlots, networks: defaultNetworks };
+  const timezone = value?.timezone || defaultTimezone;
+  const dateKey = localDateKey(timezone);
+  const { rows } = await query('select plan_date, timezone, slots, strategy, status from comoasi.daily_plans where plan_date=$1 limit 1', [dateKey]);
+  const todayPlan = rows[0] ? {
+    planDate: rows[0].plan_date,
+    timezone: rows[0].timezone,
+    slots: Array.isArray(rows[0].slots) ? rows[0].slots : [],
+    strategy: rows[0].strategy || {},
+    status: rows[0].status,
+  } : null;
+  if (!value) return { enabled: false, connected: false, ready: false, timezone, slots: defaultSlots, networks: defaultNetworks, todayPlan };
   return {
     enabled: value.enabled !== false,
     connected: Boolean(value.accessTokenEnc),
@@ -123,13 +133,14 @@ export async function automationStatus() {
     ready: Boolean(value.accessTokenEnc && value.brandId),
     brandId: value.brandId || null,
     brandLabel: value.brandLabel || null,
-    timezone: value.timezone || defaultTimezone,
+    timezone,
     networks: value.networks || defaultNetworks,
     slots: value.slots || defaultSlots,
     expiresAt: value.expiresAt || null,
     lastRunAt: value.lastRunAt || null,
     lastSuccessAt: value.lastSuccessAt || null,
     lastError: value.lastError || null,
+    todayPlan,
   };
 }
 
@@ -243,7 +254,7 @@ async function loadOrCreatePlan(dateKey, config) {
   const slots = buildDailySlots(dateKey, config.timezone || defaultTimezone, config.slots);
   const inserted = await query(
     `insert into comoasi.daily_plans(plan_date, timezone, slots, strategy, status)
-     values($1,$2,$3::jsonb,$4::jsonb,'active')
+     values($1,$2,$3::jsonb,$4::jsonb,'planned')
      on conflict(plan_date) do update set timezone=excluded.timezone
      returning *`,
     [dateKey, config.timezone || defaultTimezone, JSON.stringify(slots), JSON.stringify({ mode: 'autonomous', version: 'v1', approvalsRequired: false })]
@@ -255,7 +266,7 @@ async function savePlan(plan, slots) {
   await query('update comoasi.daily_plans set slots=$2::jsonb, status=$3 where plan_date=$1', [
     plan.plan_date,
     JSON.stringify(slots),
-    slots.every(slot => slot.status === 'scheduled') ? 'scheduled' : 'active',
+    slots.every(slot => slot.status === 'scheduled') ? 'scheduled' : 'planned',
   ]);
 }
 
@@ -340,7 +351,9 @@ export async function automationTick() {
     }
     await savePlan(plan, slots);
     const latest = await loadConfig() || config;
-    const saved = { ...latest, lastRunAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), lastError: slots.find(slot => slot.error)?.error || null };
+    const firstError = slots.find(slot => slot.error)?.error || null;
+    const nowIso = new Date().toISOString();
+    const saved = { ...latest, lastRunAt: nowIso, lastSuccessAt: firstError ? latest.lastSuccessAt || null : nowIso, lastError: firstError };
     delete saved.updatedAt;
     await saveConfig(saved);
     return automationStatus();
