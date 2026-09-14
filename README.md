@@ -25,10 +25,11 @@ This repository must never import, call, read, write or fall back to HISTYRA inf
 - `POST /api/radar/snapshots`
 - `GET /api/learning`
 - `POST/GET /api/jobs`
-- `GET/POST /api/plans`
+- `GET /api/plans`
 - `GET/POST /api/publisher/queue`
 
 No HISTYRA fallback is permitted.
 
 Deployment trigger: isolated Railway production service.
 Deployment trigger 2: Railway GitHub access verified on 2026-09-11.
+Deployment trigger 3: third daily automation slot prepared for 08:00 on 2026-09-14.
