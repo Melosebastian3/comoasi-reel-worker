@@ -7,6 +7,7 @@ const settingKey = 'metricool_automation_v1';
 const defaultTimezone = 'America/Argentina/Buenos_Aires';
 const defaultNetworks = ['instagram', 'tiktok', 'youtube'];
 const defaultSlots = [
+  { key: 'manana', time: '08:00' },
   { key: 'mediodia', time: '13:00' },
   { key: 'noche', time: '20:30' },
 ];
@@ -232,7 +233,7 @@ function buildDailySlots(dateKey, timezone, configuredSlots) {
   const dayIndex = Math.floor(Date.parse(dateKey + 'T00:00:00Z') / 86400000);
   const rotation = categoryRotations[Math.abs(dayIndex) % categoryRotations.length];
   const source = Array.isArray(configuredSlots) && configuredSlots.length ? configuredSlots : defaultSlots;
-  return source.slice(0, 2).map((slot, index) => {
+  return source.slice(0, 3).map((slot, index) => {
     const publishAt = zonedTime(dateKey, clean(slot.time) || defaultSlots[index].time, timezone);
     return {
       key: clean(slot.key) || defaultSlots[index].key,
