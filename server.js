@@ -6,6 +6,7 @@ import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
 import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, scheduleSavedMetricool, setAutomationEnabled, startAutomationDispatcher } from './metricool-automation.js';
+import { recoverMetricoolAutomation } from './metricool-repair.js';
 import { enforceReelRetention, retentionStatus, startRetentionDispatcher } from './retention.js';
 
 const app = express();
@@ -307,6 +308,11 @@ app.listen(port, async () => {
     startPublisherDispatcher(10000);
     startAutomationDispatcher(60000);
     startRetentionDispatcher();
+    void recoverMetricoolAutomation()
+      .then(result => {
+        if (result?.ok && !result?.skipped) console.log('[como-asi] Metricool startup repair completed');
+      })
+      .catch(error => console.error('[como-asi] Metricool startup repair failed', error?.message || error));
   } catch (error) {
     console.error('[como-asi] recovery scan failed', error);
   }
