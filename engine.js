@@ -58,10 +58,12 @@ export async function uploadAsset(assetPath, filePath, contentType) {
   }
 
   const bytes = await fs.readFile(filePath);
-  const chunkSize = 1500000;
+  const maxChunkCount = 480;
+  const minimumChunkSize = 1500000;
+  const chunkSize = Math.max(minimumChunkSize, Math.ceil(bytes.length / maxChunkCount));
   const chunkCount = Math.ceil(bytes.length / chunkSize);
   const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-  console.info(`[como-asi] chunked asset upload: ${chunkCount} chunks`);
+  console.info(`[como-asi] chunked asset upload: ${chunkCount} chunks of up to ${chunkSize} bytes`);
   for (let index = 0; index < chunkCount; index += 1) {
     const content = bytes.subarray(index * chunkSize, Math.min(bytes.length, (index + 1) * chunkSize)).toString('base64');
     await studioCall('/api/assets/chunk', { uploadId, index, content }, { timeoutMs: 180000, attempts: 5 });
