@@ -164,6 +164,27 @@ async function refreshedAccessToken(config) {
   return clean(data.access_token);
 }
 
+export async function scheduleSavedMetricool(input) {
+  const config = await loadConfig();
+  if (!config?.accessTokenEnc || !config?.brandId) throw new Error('metricool_reconnect_required');
+  const accessToken = await refreshedAccessToken(config);
+  const allowed = new Set(defaultNetworks);
+  const requestedNetworks = [...new Set((Array.isArray(input?.networks) ? input.networks : config.networks || defaultNetworks)
+    .map(value => clean(value).toLowerCase())
+    .filter(value => allowed.has(value)))];
+  if (!clean(input?.reelId) || !clean(input?.scheduledAt) || !requestedNetworks.length) {
+    throw new Error('metricool_schedule_parameters_required');
+  }
+  return studioCall('/api/metricool/oauth/schedule', {
+    accessToken,
+    brandId: config.brandId,
+    reelId: clean(input.reelId),
+    scheduledAt: clean(input.scheduledAt),
+    timezone: clean(input?.timezone) || config.timezone || defaultTimezone,
+    networks: requestedNetworks,
+  }, { timeoutMs: 90000, attempts: 1 });
+}
+
 function localDateKey(timezone) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
