@@ -291,6 +291,7 @@ async function processSlot(slot, config, now) {
   if (!job) {
     next.jobId = null;
     next.status = 'planned';
+    next.error = null;
     return next;
   }
   if (job.status === 'failed') {
@@ -311,6 +312,7 @@ async function processSlot(slot, config, now) {
   }
   if (job.status !== 'completed' || job.reel_status !== 'ready' || !job.reel_id || !job.video_object_key) {
     next.status = 'generating';
+    next.error = null;
     return next;
   }
 
