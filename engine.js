@@ -23,6 +23,7 @@ export async function studioCall(route, body, options = {}) {
       let data;
       try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
       if (!response.ok) {
+        console.error(`[como-asi] studio call failed ${route} HTTP ${response.status}: ${text.slice(0, 4000)}`);
         const requestError = new Error(`${route} failed with HTTP ${response.status}: ${text.slice(0, 500)}`);
         requestError.status = response.status;
         throw requestError;
