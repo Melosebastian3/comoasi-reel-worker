@@ -521,6 +521,18 @@ export function startQueueDispatcher(intervalMs = 5000) {
 }
 
 export async function recoverJobs() {
+  const { rows: orphanedRunning } = await query(`
+    update comoasi.reel_jobs
+       set status='queued',
+           stage='queued',
+           error=null,
+           updated_at=now()
+     where status='running'
+     returning id
+  `);
+  if (orphanedRunning.length) {
+    console.info(`[como-asi] requeued ${orphanedRunning.length} orphaned running job(s) after restart`);
+  }
   const { rows: recoveredUploads } = await query(`
     update comoasi.reel_jobs
        set status='queued',
@@ -557,7 +569,7 @@ export async function recoverJobs() {
   if (recoveredRenders.length) {
     console.info(`[como-asi] auto-requeued ${recoveredRenders.length} interrupted render job(s) with bounded resources`);
   }
-  const { rows } = await query(`select id from comoasi.reel_jobs where status in ('queued','running') order by created_at asc limit 10`);
+  const { rows } = await query(`select id from comoasi.reel_jobs where status='queued' order by created_at asc limit 10`);
   if (rows[0]) startJob(rows[0].id);
   return rows.length;
 }
