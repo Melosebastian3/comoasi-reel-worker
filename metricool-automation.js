@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
-import { query } from './db.js';
+import { pool, query } from './db.js';
 import { studioCall } from './engine.js';
 import { createJob } from './pipeline.js';
 
 const settingKey = 'metricool_automation_v1';
+const refreshLockKey = 'comoasi_metricool_oauth_refresh';
 const defaultTimezone = 'America/Argentina/Buenos_Aires';
 const defaultNetworks = ['instagram', 'tiktok', 'youtube'];
 const defaultSlots = [
@@ -18,6 +19,7 @@ const categoryRotations = [
 ];
 
 const clean = value => String(value || '').trim();
+const authNeedsReconnect = value => /metricool_reconnect_required|metricool_token_refresh_failed:400:invalid_grant/i.test(clean(value));
 const encryptionKey = () => {
   const secret = clean(process.env.SOCIAL_TOKEN_ENCRYPTION_KEY);
   if (!secret) throw new Error('SOCIAL_TOKEN_ENCRYPTION_KEY_missing');
@@ -62,16 +64,17 @@ export async function saveMetricoolConnection(input) {
   if (!accessToken) throw new Error('metricool_access_required');
   const current = await loadConfig() || {};
   const expiresIn = Math.max(60, Number(input?.expiresIn || 3600));
+  const refreshToken = clean(input?.refreshToken);
   const value = {
     ...current,
     accessTokenEnc: seal(accessToken),
-    refreshTokenEnc: clean(input?.refreshToken) ? seal(input.refreshToken) : current.refreshTokenEnc || null,
+    refreshTokenEnc: refreshToken ? seal(refreshToken) : null,
     expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
     networks: current.networks || defaultNetworks,
     timezone: current.timezone || defaultTimezone,
     slots: current.slots || defaultSlots,
     enabled: current.enabled !== false,
-    connectedAt: current.connectedAt || new Date().toISOString(),
+    connectedAt: new Date().toISOString(),
     lastError: null,
   };
   delete value.updatedAt;
@@ -107,10 +110,10 @@ export async function saveMetricoolBrand(input) {
 export async function setAutomationEnabled(enabled) {
   const current = await loadConfig();
   if (!current) throw new Error('metricool_connection_required');
-  const value = { ...current, enabled: Boolean(enabled), lastError: null };
+  const value = { ...current, enabled: Boolean(enabled), lastError: enabled ? current.lastError || null : null };
   delete value.updatedAt;
   await saveConfig(value);
-  if (value.enabled) void automationTick();
+  if (value.enabled && !authNeedsReconnect(value.lastError)) void automationTick();
   return automationStatus();
 }
 
@@ -126,12 +129,14 @@ export async function automationStatus() {
     strategy: rows[0].strategy || {},
     status: rows[0].status,
   } : null;
-  if (!value) return { enabled: false, connected: false, ready: false, timezone, slots: defaultSlots, networks: defaultNetworks, todayPlan };
+  if (!value) return { enabled: false, connected: false, renewable: false, ready: false, needsReconnect: false, timezone, slots: defaultSlots, networks: defaultNetworks, todayPlan };
+  const needsReconnect = authNeedsReconnect(value.lastError);
   return {
     enabled: value.enabled !== false,
     connected: Boolean(value.accessTokenEnc),
-    renewable: Boolean(value.refreshTokenEnc),
-    ready: Boolean(value.accessTokenEnc && value.brandId),
+    renewable: Boolean(value.refreshTokenEnc) && !needsReconnect,
+    ready: Boolean(value.accessTokenEnc && value.brandId && !needsReconnect),
+    needsReconnect,
     brandId: value.brandId || null,
     brandLabel: value.brandLabel || null,
     timezone,
@@ -146,45 +151,80 @@ export async function automationStatus() {
 }
 
 async function refreshedAccessToken(config) {
-  const accessToken = open(config.accessTokenEnc);
-  const expiresAt = config.expiresAt ? new Date(config.expiresAt).getTime() : 0;
-  if (accessToken && expiresAt > Date.now() + 180000) return accessToken;
-  const refreshToken = open(config.refreshTokenEnc);
-  if (!refreshToken) throw new Error('metricool_reconnect_required');
-  const response = await fetch('https://app.metricool.com/oauth/token', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      client_id: 'client_1b74aa2c07594a30bbf20f5d1a1efb1a',
-      refresh_token: refreshToken,
-      resource: 'https://ai.metricool.com/mcp',
-    }),
-    signal: AbortSignal.timeout(20000),
-  });
-  const responseText = await response.text();
-  let data = {};
-  try { data = responseText ? JSON.parse(responseText) : {}; } catch { data = {}; }
-  if (!response.ok || !clean(data.access_token)) {
-    const safeError = clean(data.error) || `HTTP_${response.status}`;
-    const safeDescription = clean(data.error_description || data.message || data.detail).slice(0, 220);
-    throw new Error(`metricool_token_refresh_failed:${response.status}:${safeError}${safeDescription ? `:${safeDescription}` : ''}`);
+  const initialAccessToken = open(config.accessTokenEnc);
+  const initialExpiresAt = config.expiresAt ? new Date(config.expiresAt).getTime() : 0;
+  if (initialAccessToken && initialExpiresAt > Date.now() + 180000) return initialAccessToken;
+
+  const client = await pool.connect();
+  let transactionOpen = false;
+  try {
+    await client.query('begin');
+    transactionOpen = true;
+    await client.query('select pg_advisory_xact_lock(hashtext($1))', [refreshLockKey]);
+
+    const locked = await client.query('select value, updated_at from comoasi.app_settings where key=$1', [settingKey]);
+    const latest = locked.rows[0]
+      ? { ...parseSetting(locked.rows[0].value), updatedAt: locked.rows[0].updated_at }
+      : config;
+    const accessToken = open(latest.accessTokenEnc);
+    const expiresAt = latest.expiresAt ? new Date(latest.expiresAt).getTime() : 0;
+
+    if (accessToken && expiresAt > Date.now() + 180000) {
+      await client.query('commit');
+      transactionOpen = false;
+      return accessToken;
+    }
+
+    const refreshToken = open(latest.refreshTokenEnc);
+    if (!refreshToken) throw new Error('metricool_reconnect_required');
+
+    const response = await fetch('https://app.metricool.com/oauth/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: 'client_1b74aa2c07594a30bbf20f5d1a1efb1a',
+        refresh_token: refreshToken,
+        resource: 'https://ai.metricool.com/mcp',
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const responseText = await response.text();
+    let data = {};
+    try { data = responseText ? JSON.parse(responseText) : {}; } catch { data = {}; }
+    if (!response.ok || !clean(data.access_token)) {
+      const safeError = clean(data.error) || `HTTP_${response.status}`;
+      const safeDescription = clean(data.error_description || data.message || data.detail).slice(0, 220);
+      throw new Error(`metricool_token_refresh_failed:${response.status}:${safeError}${safeDescription ? `:${safeDescription}` : ''}`);
+    }
+
+    const next = {
+      ...latest,
+      accessTokenEnc: seal(data.access_token),
+      refreshTokenEnc: clean(data.refresh_token) ? seal(data.refresh_token) : latest.refreshTokenEnc,
+      expiresAt: new Date(Date.now() + Number(data.expires_in || 3600) * 1000).toISOString(),
+      lastError: null,
+    };
+    delete next.updatedAt;
+    await client.query(
+      `insert into comoasi.app_settings(key, value) values($1,$2::jsonb)
+       on conflict(key) do update set value=excluded.value, updated_at=now()`,
+      [settingKey, JSON.stringify(next)]
+    );
+    await client.query('commit');
+    transactionOpen = false;
+    return clean(data.access_token);
+  } catch (error) {
+    if (transactionOpen) await client.query('rollback').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
   }
-  const next = {
-    ...config,
-    accessTokenEnc: seal(data.access_token),
-    refreshTokenEnc: clean(data.refresh_token) ? seal(data.refresh_token) : config.refreshTokenEnc,
-    expiresAt: new Date(Date.now() + Number(data.expires_in || 3600) * 1000).toISOString(),
-    lastError: null,
-  };
-  delete next.updatedAt;
-  await saveConfig(next);
-  return clean(data.access_token);
 }
 
 export async function scheduleSavedMetricool(input) {
   const config = await loadConfig();
-  if (!config?.accessTokenEnc || !config?.brandId) throw new Error('metricool_reconnect_required');
+  if (!config?.accessTokenEnc || !config?.brandId || authNeedsReconnect(config.lastError)) throw new Error('metricool_reconnect_required');
   const accessToken = await refreshedAccessToken(config);
   const allowed = new Set(defaultNetworks);
   const requestedNetworks = [...new Set((Array.isArray(input?.networks) ? input.networks : config.networks || defaultNetworks)
@@ -240,10 +280,11 @@ function buildDailySlots(dateKey, timezone, configuredSlots) {
   const rotation = categoryRotations[Math.abs(dayIndex) % categoryRotations.length];
   const source = Array.isArray(configuredSlots) && configuredSlots.length ? configuredSlots : defaultSlots;
   return source.slice(0, 3).map((slot, index) => {
-    const publishAt = zonedTime(dateKey, clean(slot.time) || defaultSlots[index].time, timezone);
+    const fallback = defaultSlots[index] || defaultSlots[defaultSlots.length - 1];
+    const publishAt = zonedTime(dateKey, clean(slot.time) || fallback.time, timezone);
     return {
-      key: clean(slot.key) || defaultSlots[index].key,
-      time: clean(slot.time) || defaultSlots[index].time,
+      key: clean(slot.key) || fallback.key,
+      time: clean(slot.time) || fallback.time,
       category: rotation[index % rotation.length],
       generateAt: new Date(publishAt.getTime() - 6 * 60 * 60 * 1000).toISOString(),
       publishAt: publishAt.toISOString(),
@@ -256,36 +297,65 @@ function buildDailySlots(dateKey, timezone, configuredSlots) {
 }
 
 async function loadOrCreatePlan(dateKey, config) {
+  const timezone = config.timezone || defaultTimezone;
+  const desired = buildDailySlots(dateKey, timezone, config.slots);
   const { rows } = await query('select * from comoasi.daily_plans where plan_date=$1 limit 1', [dateKey]);
-  if (rows[0]) return { ...rows[0], slots: Array.isArray(rows[0].slots) ? rows[0].slots : [] };
-  const slots = buildDailySlots(dateKey, config.timezone || defaultTimezone, config.slots);
+  if (rows[0]) {
+    const current = Array.isArray(rows[0].slots) ? rows[0].slots : [];
+    const now = Date.now();
+    const merged = desired.map(slot => {
+      const saved = current.find(candidate => clean(candidate?.key) === slot.key || clean(candidate?.time) === slot.time);
+      if (saved) {
+        return {
+          ...slot,
+          ...saved,
+          key: slot.key,
+          time: slot.time,
+          category: clean(saved.category) || slot.category,
+          generateAt: slot.generateAt,
+          publishAt: slot.publishAt,
+        };
+      }
+      return new Date(slot.publishAt).getTime() <= now ? { ...slot, status: 'missed' } : slot;
+    });
+    if (JSON.stringify(current) !== JSON.stringify(merged) || rows[0].timezone !== timezone) {
+      await query('update comoasi.daily_plans set timezone=$2, slots=$3::jsonb where plan_date=$1', [dateKey, timezone, JSON.stringify(merged)]);
+    }
+    return { ...rows[0], timezone, slots: merged };
+  }
   const inserted = await query(
     `insert into comoasi.daily_plans(plan_date, timezone, slots, strategy, status)
      values($1,$2,$3::jsonb,$4::jsonb,'planned')
      on conflict(plan_date) do update set timezone=excluded.timezone
      returning *`,
-    [dateKey, config.timezone || defaultTimezone, JSON.stringify(slots), JSON.stringify({ mode: 'autonomous', version: 'v1', approvalsRequired: false })]
+    [dateKey, timezone, JSON.stringify(desired), JSON.stringify({ mode: 'autonomous', version: 'v1', approvalsRequired: false })]
   );
-  return { ...inserted.rows[0], slots };
+  return { ...inserted.rows[0], slots: desired };
 }
 
 async function savePlan(plan, slots) {
   await query('update comoasi.daily_plans set slots=$2::jsonb, status=$3 where plan_date=$1', [
     plan.plan_date,
     JSON.stringify(slots),
-    slots.every(slot => slot.status === 'scheduled') ? 'scheduled' : 'planned',
+    slots.every(slot => slot.status === 'scheduled' || slot.status === 'missed') ? 'scheduled' : 'planned',
   ]);
 }
 
 async function processSlot(slot, config, now) {
   const next = { ...slot };
+  if (next.status === 'scheduled' || next.status === 'missed') return next;
+  if (!next.jobId && now >= new Date(next.publishAt).getTime()) {
+    next.status = 'missed';
+    next.error = null;
+    return next;
+  }
   if (!next.jobId && now >= new Date(next.generateAt).getTime()) {
     const job = await createJob({ payload: { category: next.category, autonomous: true, slotKey: next.key, plannedPublishAt: next.publishAt } });
     next.jobId = job.id;
     next.status = 'generating';
     return next;
   }
-  if (!next.jobId || next.status === 'scheduled') return next;
+  if (!next.jobId) return next;
 
   const { rows } = await query(
     `select j.status, j.error, j.reel_id, r.status as reel_status, r.video_object_key
@@ -347,13 +417,17 @@ export async function automationTick() {
   running = true;
   try {
     let config = await loadConfig();
-    if (!config?.enabled || !config?.accessTokenEnc || !config?.brandId) return automationStatus();
+    if (!config?.enabled || !config?.accessTokenEnc || !config?.brandId || authNeedsReconnect(config.lastError)) return automationStatus();
     const dateKey = localDateKey(config.timezone || defaultTimezone);
     const plan = await loadOrCreatePlan(dateKey, config);
     const slots = [];
     for (const slot of plan.slots) {
       try {
         config = await loadConfig() || config;
+        if (authNeedsReconnect(config.lastError)) {
+          slots.push({ ...slot, error: config.lastError });
+          continue;
+        }
         slots.push(await processSlot(slot, config, Date.now()));
       } catch (error) {
         const message = clean(error?.message || error).slice(0, 300);
