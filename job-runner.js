@@ -114,11 +114,18 @@ async function persistJobResult(id, patch) {
 }
 
 async function upsertReel(job, topicData) {
-  if (job.reel_id) {
+  let reelId = job.reel_id;
+  if (!reelId) {
+    const existing = await query('select id from comoasi.reels where worker_job_id=$1 limit 1', [String(job.id)]);
+    reelId = existing.rows[0]?.id || null;
+  }
+  if (reelId) {
     const { rows } = await query(
       `update comoasi.reels set category=$2, topic=$3, title=$4, hook=$5, viral_score=$6, visual_score=$7, status='researching', updated_at=now() where id=$1 returning *`,
-      [job.reel_id, topicData.category, topicData.topic, topicData.title || null, topicData.hook || null, topicData.viralScore ?? null, topicData.visualScore ?? null]
+      [reelId, topicData.category, topicData.topic, topicData.title || null, topicData.hook || null, topicData.viralScore ?? null, topicData.visualScore ?? null]
     );
+    await query('update comoasi.reel_jobs set reel_id=$2, updated_at=now() where id=$1', [job.id, reelId]);
+    await persistJobResult(job.id, { reelId });
     return rows[0];
   }
   const { rows } = await query(
@@ -543,7 +550,11 @@ export async function recoverJobs() {
            result=coalesce(result, '{}'::jsonb) || jsonb_build_object('assetWriteAutoRecoveryAt', now()),
            updated_at=now()
      where status='failed'
-       and error like '%/api/assets/write failed%'
+       and (
+         error like '%/api/assets/write failed%'
+         or error like '%/api/assets/chunk failed%'
+         or error like '%/api/assets/commit failed%'
+       )
        and updated_at > now() - interval '24 hours'
        and not (coalesce(result, '{}'::jsonb) ? 'assetWriteAutoRecoveryAt')
      returning id
