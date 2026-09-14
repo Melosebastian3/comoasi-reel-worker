@@ -66,3 +66,25 @@ export async function recoverMetricoolAutomation() {
 
   return { ok: true, skipped: false, cleanup: cleanup.cleanup || cleanup, status };
 }
+
+let repairRunning = false;
+export function startMetricoolRepairDispatcher(intervalMs = 120000) {
+  const run = async () => {
+    if (repairRunning) return;
+    repairRunning = true;
+    try {
+      const result = await recoverMetricoolAutomation();
+      if (result?.ok && !result?.skipped) {
+        console.log('[como-asi] Metricool repair completed', JSON.stringify(result.cleanup || {}));
+      }
+    } catch (error) {
+      console.error('[como-asi] Metricool repair attempt failed', error?.message || error);
+    } finally {
+      repairRunning = false;
+    }
+  };
+  void run();
+  const timer = setInterval(() => void run(), intervalMs);
+  timer.unref?.();
+  console.log(`[como-asi] Metricool repair dispatcher active every ${intervalMs}ms while needed`);
+}
