@@ -162,8 +162,14 @@ async function refreshedAccessToken(config) {
     }),
     signal: AbortSignal.timeout(20000),
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !clean(data.access_token)) throw new Error('metricool_token_refresh_failed');
+  const responseText = await response.text();
+  let data = {};
+  try { data = responseText ? JSON.parse(responseText) : {}; } catch { data = {}; }
+  if (!response.ok || !clean(data.access_token)) {
+    const safeError = clean(data.error) || `HTTP_${response.status}`;
+    const safeDescription = clean(data.error_description || data.message || data.detail).slice(0, 220);
+    throw new Error(`metricool_token_refresh_failed:${response.status}:${safeError}${safeDescription ? `:${safeDescription}` : ''}`);
+  }
   const next = {
     ...config,
     accessTokenEnc: seal(data.access_token),
