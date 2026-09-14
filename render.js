@@ -19,9 +19,12 @@ function run(command, args, options = {}) {
     child.stdout?.on('data', chunk => { stdout += chunk.toString(); });
     child.stderr?.on('data', chunk => { stderr += chunk.toString(); });
     child.on('error', error => finish(reject, error));
-    child.on('close', code => {
+    child.on('close', (code, signal) => {
       if (code === 0) finish(resolve, { stdout, stderr });
-      else finish(reject, new Error(`${command} exited ${code}: ${stderr.slice(-4000)}`));
+      else {
+        const exitReason = signal ? `signal ${signal}` : `code ${code}`;
+        finish(reject, new Error(`${command} exited with ${exitReason}: ${stderr.slice(-4000)}`));
+      }
     });
     if (timeoutMs > 0) {
       timeout = setTimeout(() => {
@@ -558,16 +561,16 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
   const clipPaths = [];
   const motionFor = (index, frames, isCover = false) => {
     if (isCover) {
-      return "scale=1350:2400,zoompan=z='min(zoom+0.0012,1.09)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30";
+      return "scale=1080:1920:flags=lanczos,zoompan=z='min(zoom+0.0012,1.09)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30";
     }
     const safeFrames = Math.max(1, frames);
     const motions = [
-      "scale=1410:2520,zoompan=z='min(zoom+0.0042,1.24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30",
-      `scale=1410:2520,zoompan=z='1.16':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30`,
-      "scale=1410:2520,zoompan=z='max(1.24-on*0.0035,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30",
-      `scale=1410:2520,zoompan=z='1.16':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30`,
-      `scale=1410:2520,zoompan=z='1.17':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=1080x1920:fps=30`,
-      `scale=1410:2520,zoompan=z='if(lt(on,${Math.round(safeFrames * 0.56)}),1.05+on*0.0014,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.40-(ih/zoom/2)':d=1:s=1080x1920:fps=30`
+      "scale=1080:1920:flags=lanczos,zoompan=z='min(zoom+0.0042,1.24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30",
+      `scale=1080:1920:flags=lanczos,zoompan=z='1.16':x='(iw-iw/zoom)*on/${safeFrames}':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30`,
+      "scale=1080:1920:flags=lanczos,zoompan=z='max(1.24-on*0.0035,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30",
+      `scale=1080:1920:flags=lanczos,zoompan=z='1.16':x='(iw-iw/zoom)*(1-on/${safeFrames})':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30`,
+      `scale=1080:1920:flags=lanczos,zoompan=z='1.17':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${safeFrames}':d=1:s=1080x1920:fps=30`,
+      `scale=1080:1920:flags=lanczos,zoompan=z='if(lt(on,${Math.round(safeFrames * 0.56)}),1.05+on*0.0014,1.22)':x='iw/2-(iw/zoom/2)':y='ih*0.40-(ih/zoom/2)':d=1:s=1080x1920:fps=30`
     ];
     return motions[index % motions.length];
   };
@@ -580,13 +583,14 @@ export async function renderReel({ workDir, coverPath, scenePaths, scenes, narra
       : '';
     const colorGrade = isCover ? '' : ',eq=contrast=1.07:saturation=1.12:brightness=-0.01,unsharp=5:5:0.45:5:5:0.0';
     await run('ffmpeg', [
-      '-y', '-loop', '1', '-framerate', '30', '-i', inputPath,
+      '-y', '-filter_threads', '1', '-filter_complex_threads', '1',
+      '-loop', '1', '-framerate', '30', '-i', inputPath,
       '-t', duration.toFixed(4),
       '-vf', `${motionFor(index, frames, isCover)}${colorGrade}${flash},format=yuv420p`,
-      '-an', '-filter_threads', '2', '-threads', '2',
-      '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-x264-params', 'threads=2:lookahead_threads=1',
+      '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
+      '-threads:v', '2', '-x264-params', 'threads=2:lookahead_threads=1:sliced_threads=0',
       '-r', '30', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0', out,
-    ]);
+    ], { timeoutMs: 180000 });
     clipPaths.push(out);
   };
 
