@@ -547,7 +547,7 @@ export async function recoverJobs() {
            progress=0,
            error=null,
            completed_at=null,
-           result=coalesce(result, '{}'::jsonb) || jsonb_build_object('assetWriteAutoRecoveryAt', now()),
+           result=coalesce(result, '{}'::jsonb) || jsonb_build_object('assetUploadAutoRecoveryV2At', now()),
            updated_at=now()
      where status='failed'
        and (
@@ -556,7 +556,7 @@ export async function recoverJobs() {
          or error like '%/api/assets/commit failed%'
        )
        and updated_at > now() - interval '24 hours'
-       and not (coalesce(result, '{}'::jsonb) ? 'assetWriteAutoRecoveryAt')
+       and not (coalesce(result, '{}'::jsonb) ? 'assetUploadAutoRecoveryV2At')
      returning id
   `);
   if (recoveredUploads.length) {
