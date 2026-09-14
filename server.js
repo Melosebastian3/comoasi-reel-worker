@@ -6,6 +6,7 @@ import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
 import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, scheduleSavedMetricool, setAutomationEnabled, startAutomationDispatcher } from './metricool-automation.js';
+import { enforceReelRetention, retentionStatus, startRetentionDispatcher } from './retention.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -278,6 +279,16 @@ app.post('/api/automation/enabled', async (req, res) => {
   }
 });
 
+app.get('/api/retention/status', async (_req, res) => {
+  try { res.json(await retentionStatus()); }
+  catch (error) { res.status(500).json({ error: error?.message || 'retention_status_failed' }); }
+});
+
+app.post('/api/retention/enforce', async (_req, res) => {
+  try { res.json(await enforceReelRetention()); }
+  catch (error) { res.status(500).json({ error: error?.message || 'retention_enforce_failed' }); }
+});
+
 app.get('/api/runtime-id', (_req, res) => {
   res.json({ project: projectKey, runtimeId: crypto.randomUUID(), time: new Date().toISOString() });
 });
@@ -295,6 +306,7 @@ app.listen(port, async () => {
     startQueueDispatcher(5000);
     startPublisherDispatcher(10000);
     startAutomationDispatcher(60000);
+    startRetentionDispatcher();
   } catch (error) {
     console.error('[como-asi] recovery scan failed', error);
   }
