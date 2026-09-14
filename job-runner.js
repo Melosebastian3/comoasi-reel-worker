@@ -538,6 +538,24 @@ export async function recoverJobs() {
   if (recoveredUploads.length) {
     console.info(`[como-asi] auto-requeued ${recoveredUploads.length} asset upload job(s) after transport fix`);
   }
+  const { rows: recoveredRenders } = await query(`
+    update comoasi.reel_jobs
+       set status='queued',
+           stage='queued',
+           progress=0,
+           error=null,
+           completed_at=null,
+           result=coalesce(result, '{}'::jsonb) || jsonb_build_object('ffmpegRecoveryAt', now()),
+           updated_at=now()
+     where status='failed'
+       and (error like '%ffmpeg exited%' or error like '%signal SIGKILL%' or error like '%timed out after%')
+       and updated_at > now() - interval '24 hours'
+       and not (coalesce(result, '{}'::jsonb) ? 'ffmpegRecoveryAt')
+     returning id
+  `);
+  if (recoveredRenders.length) {
+    console.info(`[como-asi] auto-requeued ${recoveredRenders.length} interrupted render job(s) with bounded resources`);
+  }
   const { rows } = await query(`select id from comoasi.reel_jobs where status in ('queued','running') order by created_at asc limit 10`);
   rows.forEach(row => startJob(row.id));
   return rows.length;
