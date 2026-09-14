@@ -356,6 +356,7 @@ export async function automationTick() {
     const saved = { ...latest, lastRunAt: nowIso, lastSuccessAt: firstError ? latest.lastSuccessAt || null : nowIso, lastError: firstError };
     delete saved.updatedAt;
     await saveConfig(saved);
+    console.info(`[como-asi] plan ${dateKey}: ${slots.map(slot => `${slot.key}=${slot.status}`).join(', ')}`);
     return automationStatus();
   } finally {
     running = false;
