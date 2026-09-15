@@ -105,10 +105,10 @@ async function saveRows({ reelId, networks, scheduledAt, jobId, idempotencyKey, 
   return saved;
 }
 
-async function supersedeFailedBufferRows(reelId, networks, jobId) {
+async function cancelFailedBufferRows(reelId, networks, jobId) {
   await query(
     `update comoasi.publishing_queue
-        set status='superseded',
+        set status='cancelled',
             publish_payload=coalesce(publish_payload,'{}'::jsonb) || $3::jsonb,
             updated_at=now()
       where reel_id=$1
@@ -154,12 +154,17 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
   const existing = await existingUploadPostRows(reelId, selected);
   const already = selected.filter(network => clean(existing.get(network)?.external_post_id));
   if (already.length === selected.length) {
+    const existingJobId = clean(existing.get(selected[0])?.external_post_id);
+    if (allowFailedBufferTakeover && existingJobId) {
+      await cancelFailedBufferRows(reelId, selected, existingJobId);
+    }
     return {
       ok: true,
       provider: 'upload-post',
       duplicatePrevented: true,
       scheduledAt,
       networks: selected,
+      jobId: existingJobId || null,
       scheduled: selected.map(network => ({
         network,
         postId: clean(existing.get(network)?.external_post_id),
@@ -224,7 +229,7 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
   if (!jobId) throw new Error('upload_post_job_id_missing');
 
   await saveRows({ reelId, networks: selected, scheduledAt, jobId, idempotencyKey, response: data });
-  if (allowFailedBufferTakeover) await supersedeFailedBufferRows(reelId, selected, jobId);
+  if (allowFailedBufferTakeover) await cancelFailedBufferRows(reelId, selected, jobId);
   console.info('[como-asi] Upload-Post fallback scheduled', reelId, selected.join(','), jobId);
   return {
     ok: true,
