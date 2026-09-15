@@ -1,12 +1,12 @@
 import express from 'express';
 import crypto from 'node:crypto';
+import { Readable } from 'node:stream';
 import { healthcheckDb, query } from './db.js';
 import { createJob, setJobStage } from './pipeline.js';
 import { recoverJobs, startQueueDispatcher } from './job-runner.js';
 import { studioCall } from './engine.js';
 import { authorizationUrl, disconnectSocial, finishConnection, queuePublishAll, socialStatus, startPublisherDispatcher } from './social-publisher.js';
-import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, scheduleSavedMetricool, setAutomationEnabled, startAutomationDispatcher } from './metricool-automation.js';
-import { recoverMetricoolAutomation } from './metricool-repair.js';
+import { automationStatus, automationTick, saveMetricoolBrand, saveMetricoolConnection, scheduleSavedMetricool, setAutomationEnabled, startAutomationDispatcher } from './buffer-automation.js';
 import { enforceReelRetention, retentionStatus, startRetentionDispatcher } from './retention.js';
 
 const app = express();
@@ -23,7 +23,7 @@ app.use((req, res, next) => {
 app.get('/health', async (_req, res) => {
   try {
     const db = await healthcheckDb();
-    res.json({ ok: true, project: projectKey, isolated: true, database: db.database, role: db.role });
+    res.json({ ok: true, project: projectKey, isolated: true, database: db.database, role: db.role, publisher: 'buffer' });
   } catch (error) {
     res.status(503).json({ ok: false, project: projectKey, isolated: true, error: String(error) });
   }
@@ -77,6 +77,67 @@ app.get('/api/reels/:id', async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: 'not_found' });
   res.json(rows[0]);
 });
+
+async function reelMediaUrl(reelId) {
+  const { rows } = await query(
+    'select video_object_key, status from comoasi.reels where id=$1',
+    [reelId]
+  );
+  const reel = rows[0];
+  if (!reel || reel.status !== 'ready' || !reel.video_object_key) return '';
+  const signed = await studioCall(
+    '/api/assets/url',
+    { path: reel.video_object_key },
+    { timeoutMs: 30000, attempts: 3 }
+  );
+  return String(signed?.url || '');
+}
+
+async function proxyReelMedia(req, res, headOnly = false) {
+  try {
+    const url = await reelMediaUrl(req.params.id);
+    if (!url) return res.status(404).json({ error: 'media_not_found' });
+
+    const requestHeaders = {};
+    if (req.headers.range) requestHeaders.range = String(req.headers.range);
+    if (headOnly && !requestHeaders.range) requestHeaders.range = 'bytes=0-0';
+
+    const upstream = await fetch(url, {
+      headers: requestHeaders,
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!upstream.ok && upstream.status !== 206) {
+      return res.status(502).json({ error: 'media_fetch_failed', upstreamStatus: upstream.status });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'video/mp4';
+    const contentRange = upstream.headers.get('content-range');
+    const upstreamLength = upstream.headers.get('content-length');
+    const rangeTotal = contentRange?.match(/\/(\d+)$/)?.[1] || null;
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (contentRange && !headOnly) res.setHeader('Content-Range', contentRange);
+    if (headOnly && rangeTotal) res.setHeader('Content-Length', rangeTotal);
+    else if (upstreamLength) res.setHeader('Content-Length', upstreamLength);
+
+    if (headOnly) {
+      if (upstream.body) await upstream.body.cancel().catch(() => {});
+      return res.status(200).end();
+    }
+
+    res.status(upstream.status === 206 ? 206 : 200);
+    if (!upstream.body) return res.end();
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (error) {
+    console.error('[como-asi] media proxy failed', error?.message || error);
+    if (!res.headersSent) res.status(500).json({ error: 'media_proxy_failed' });
+  }
+}
+
+app.get('/media/:id.mp4', async (req, res) => proxyReelMedia(req, res, false));
+app.head('/media/:id.mp4', async (req, res) => proxyReelMedia(req, res, true));
 
 app.get('/api/memory', async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 250);
@@ -234,7 +295,7 @@ app.post('/api/metricool/connect', async (req, res) => {
   try {
     res.json(await saveMetricoolConnection(req.body || {}));
   } catch (error) {
-    res.status(400).json({ error: error?.message || 'metricool_connection_failed' });
+    res.status(400).json({ error: error?.message || 'buffer_connection_compat_failed' });
   }
 });
 
@@ -242,7 +303,7 @@ app.post('/api/metricool/brand', async (req, res) => {
   try {
     res.json(await saveMetricoolBrand(req.body || {}));
   } catch (error) {
-    res.status(400).json({ error: error?.message || 'metricool_brand_failed' });
+    res.status(400).json({ error: error?.message || 'buffer_brand_compat_failed' });
   }
 });
 
@@ -254,13 +315,19 @@ app.get('/api/automation/status', async (_req, res) => {
   }
 });
 
+app.post('/api/buffer/schedule-saved', async (req, res) => {
+  try {
+    res.json(await scheduleSavedMetricool(req.body || {}));
+  } catch (error) {
+    res.status(502).json({ error: error?.message || 'buffer_schedule_failed' });
+  }
+});
+
 app.post('/api/metricool/schedule-saved', async (req, res) => {
   try {
     res.json(await scheduleSavedMetricool(req.body || {}));
   } catch (error) {
-    const message = error?.message || 'metricool_schedule_failed';
-    const status = message === 'metricool_reconnect_required' ? 401 : 502;
-    res.status(status).json({ error: message });
+    res.status(502).json({ error: error?.message || 'buffer_schedule_failed' });
   }
 });
 
@@ -308,11 +375,7 @@ app.listen(port, async () => {
     startPublisherDispatcher(10000);
     startAutomationDispatcher(60000);
     startRetentionDispatcher();
-    void recoverMetricoolAutomation()
-      .then(result => {
-        if (result?.ok && !result?.skipped) console.log('[como-asi] Metricool startup repair completed');
-      })
-      .catch(error => console.error('[como-asi] Metricool startup repair failed', error?.message || error));
+    console.log('[como-asi] Buffer autopilot active');
   } catch (error) {
     console.error('[como-asi] recovery scan failed', error);
   }
