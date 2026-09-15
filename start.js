@@ -15,7 +15,7 @@ const timer = setTimeout(() => {
     try {
       const recovery = await import('./buffer-delivery-recovery.js');
       await recovery.reconcileBufferDeliveries();
-      recovery.startBufferDeliveryRecovery(300000);
+      recovery.startBufferDeliveryRecovery(900000);
     } catch (error) {
       console.error('[como-asi] Buffer delivery recovery bootstrap failed', error?.message || error);
     }
