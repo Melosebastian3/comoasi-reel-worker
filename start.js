@@ -23,6 +23,29 @@ const timer = setTimeout(() => {
           allowFailedBufferTakeover: true,
         });
         console.info('[como-asi] emergency Upload-Post takeover ready', emergencyReelId, emergencyNetworks.join(','), Boolean(result?.duplicatePrevented) ? 'existing' : 'scheduled');
+
+        const jobId = clean(result?.jobId || result?.scheduled?.[0]?.postId);
+        if (jobId) {
+          const checkTimer = setTimeout(() => {
+            void (async () => {
+              try {
+                const statusModule = await import('./upload-post-status.js');
+                const first = await statusModule.reconcileUploadPostJob(jobId);
+                if (!first.final) {
+                  const secondTimer = setTimeout(() => {
+                    void statusModule.reconcileUploadPostJob(jobId)
+                      .catch(error => console.error('[como-asi] second Upload-Post status check failed', error?.message || error));
+                  }, 60000);
+                  secondTimer.unref?.();
+                }
+              } catch (error) {
+                console.error('[como-asi] Upload-Post status check failed', error?.message || error);
+              }
+            })();
+          }, 120000);
+          checkTimer.unref?.();
+          console.info('[como-asi] Upload-Post delivery check scheduled after 120000ms');
+        }
       }
     } catch (error) {
       console.error('[como-asi] emergency Upload-Post takeover failed', error?.message || error);
