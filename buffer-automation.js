@@ -6,9 +6,9 @@ const settingKey = 'metricool_automation_v1';
 const defaultTimezone = 'America/Argentina/Buenos_Aires';
 const defaultNetworks = ['instagram', 'tiktok', 'youtube'];
 const defaultSlots = [
-  { key: 'manana', time: '08:00', market: 'argentina' },
-  { key: 'mediodia', time: '13:00', market: 'random' },
-  { key: 'noche', time: '20:30', market: 'argentina' },
+  { key: 'manana', time: '08:00' },
+  { key: 'mediodia', time: '13:00' },
+  { key: 'noche', time: '20:30' },
 ];
 const categoryRotations = [
   ['chisme_polemica', 'famosos'],
@@ -153,7 +153,6 @@ function buildDailySlots(dateKey, timezone, configuredSlots) {
     return {
       key: clean(slot?.key) || fallback.key,
       time,
-      market: fallback.market,
       category: rotation[index % rotation.length],
       generateAt: new Date(publishAt.getTime() - 6 * 60 * 60 * 1000).toISOString(),
       publishAt: publishAt.toISOString(),
@@ -180,7 +179,6 @@ async function loadOrCreatePlan(dateKey, config) {
           ...saved,
           key: slot.key,
           time: slot.time,
-          market: slot.market,
           category: clean(saved.category) || slot.category,
           generateAt: slot.generateAt,
           publishAt: slot.publishAt,
@@ -256,11 +254,9 @@ async function processSlot(slot, config, now) {
   }
 
   if (!next.jobId && now >= generateMs) {
-    const market = next.market === 'argentina' ? 'argentina' : 'random';
     const job = await createJob({
       payload: {
-        category: `${market}:${next.category}`,
-        market,
+        category: next.category,
         autonomous: true,
         provider: 'buffer',
         slotKey: next.key,
