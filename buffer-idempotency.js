@@ -130,7 +130,7 @@ export async function scheduleBufferIdempotent({ reelId, scheduledAt, timezone, 
       scheduledAt,
       timezone,
       networks: acquired.map(item => item.network),
-    }, { timeoutMs: 120000, attempts: 4 }));
+    }, { timeoutMs: 120000, attempts: 1 }));
 
     const remoteResults = Array.isArray(scheduled.results) ? scheduled.results.map(asObject) : [];
     for (const reservation of acquired) {
