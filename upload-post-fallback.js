@@ -1,7 +1,7 @@
 import { query } from './db.js';
 
 const clean = value => String(value || '').trim();
-const allowedNetworks = new Set(['instagram', 'youtube']);
+const allowedNetworks = new Set(['instagram', 'tiktok', 'youtube']);
 
 function joinTags(value) {
   return Array.isArray(value)
@@ -195,7 +195,9 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
 
   const youtube = copyFor(reel, 'youtube');
   const instagram = copyFor(reel, 'instagram');
-  form.append('title', selected.includes('youtube') ? youtube.title : instagram.text || instagram.title);
+  const tiktok = copyFor(reel, 'tiktok');
+  const primaryCopy = selected.includes('youtube') ? youtube.title : selected.includes('tiktok') ? tiktok.text || tiktok.title : instagram.text || instagram.title;
+  form.append('title', primaryCopy);
   if (selected.includes('youtube')) {
     form.append('youtube_title', youtube.title);
     form.append('youtube_description', youtube.text);
@@ -208,6 +210,11 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
     form.append('instagram_title', instagram.text || instagram.title);
     form.append('media_type', 'REELS');
     form.append('share_to_feed', 'true');
+  }
+  if (selected.includes('tiktok')) {
+    form.append('tiktok_title', tiktok.text || tiktok.title);
+    form.append('post_mode', 'DIRECT_POST');
+    form.append('is_aigc', 'true');
   }
 
   const response = await fetch('https://api.upload-post.com/api/upload', {
