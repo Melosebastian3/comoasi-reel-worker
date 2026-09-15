@@ -19,13 +19,6 @@ function run(command, args) {
   });
 }
 
-async function contentLength(url) {
-  const response = await fetch(url, { method: 'HEAD' });
-  if (!response.ok) throw new Error(`asset_head_failed:${response.status}`);
-  const value = Number(response.headers.get('content-length') || 0);
-  return Number.isFinite(value) ? value : 0;
-}
-
 async function download(url, filePath) {
   const response = await fetch(url);
   if (!response.ok || !response.body) throw new Error(`asset_download_failed:${response.status}`);
@@ -39,18 +32,20 @@ async function download(url, filePath) {
 
 async function optimizeOne(reel) {
   const signedUrl = await getAssetUrl(reel.video_object_key);
-  const before = await contentLength(signedUrl);
-  if (before > 0 && before <= maxBytes) {
-    console.info(`[como-asi] Buffer asset already optimized ${reel.id}: ${before} bytes`);
-    return { reelId: reel.id, skipped: true, before, after: before };
-  }
-
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'comoasi-optimize-'));
   const input = path.join(dir, 'input.mp4');
   const output = path.join(dir, 'output.mp4');
   try {
-    console.info(`[como-asi] optimizing Buffer asset ${reel.id}: ${before || 'unknown'} bytes`);
+    console.info(`[como-asi] downloading Buffer asset for optimization ${reel.id}`);
     await download(signedUrl, input);
+    const inputStat = await fs.stat(input);
+    const before = inputStat.size;
+    if (before <= maxBytes) {
+      console.info(`[como-asi] Buffer asset already optimized ${reel.id}: ${before} bytes`);
+      return { reelId: reel.id, skipped: true, before, after: before };
+    }
+
+    console.info(`[como-asi] optimizing Buffer asset ${reel.id}: ${before} bytes`);
     await run('ffmpeg', [
       '-y', '-i', input,
       '-map', '0:v:0', '-map', '0:a?',
@@ -62,13 +57,11 @@ async function optimizeOne(reel) {
       '-movflags', '+faststart',
       output,
     ]);
-    const stat = await fs.stat(output);
-    if (stat.size <= 0 || stat.size >= before && before > 0) throw new Error(`asset_optimization_not_effective:${stat.size}`);
+    const outputStat = await fs.stat(output);
+    if (outputStat.size <= 0 || outputStat.size >= before) throw new Error(`asset_optimization_not_effective:${outputStat.size}`);
     await uploadAsset(reel.video_object_key, output, 'video/mp4');
-    const verifyUrl = await getAssetUrl(reel.video_object_key);
-    const after = await contentLength(verifyUrl);
-    console.info(`[como-asi] Buffer asset optimized ${reel.id}: ${before} -> ${after || stat.size} bytes`);
-    return { reelId: reel.id, skipped: false, before, after: after || stat.size };
+    console.info(`[como-asi] Buffer asset optimized ${reel.id}: ${before} -> ${outputStat.size} bytes`);
+    return { reelId: reel.id, skipped: false, before, after: outputStat.size };
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   }
@@ -80,7 +73,7 @@ export async function optimizeScheduledBufferAssets() {
       from comoasi.publishing_queue q
       join comoasi.reels r on r.id=q.reel_id
      where q.account_key='buffer'
-       and q.scheduled_at >= now() - interval '12 hours'
+       and q.scheduled_at >= now() - interval '4 hours'
        and q.scheduled_at <= now() + interval '24 hours'
        and r.status='ready'
        and r.video_object_key is not null
