@@ -3,7 +3,7 @@ import { studioCall } from './engine.js';
 import { scheduleUploadPostFallback } from './upload-post-fallback.js';
 
 const supportedNetworks = ['instagram', 'tiktok', 'youtube'];
-const fallbackNetworks = new Set(['instagram', 'youtube']);
+const fallbackNetworks = new Set(supportedNetworks);
 const clean = value => String(value || '').trim();
 const asObject = value => value && typeof value === 'object' ? value : {};
 
@@ -32,8 +32,8 @@ function publicationSnapshot(rows) {
     const candidates = rows.filter(row => clean(row.platform) === network);
     const selected = candidates.find(isPublished)
       || candidates.find(row => clean(row.status) === 'publishing')
-      || candidates.find(row => clean(row.status) === 'failed')
       || candidates.find(row => clean(row.status) === 'scheduled')
+      || candidates.find(row => clean(row.status) === 'failed')
       || candidates[0]
       || null;
     const status = !selected
@@ -56,8 +56,8 @@ function publicationSnapshot(rows) {
   if (statuses.every(item => item === 'published')) status = 'published';
   else if (statuses.some(item => item === 'published')) status = 'partial';
   else if (statuses.some(item => item === 'publishing')) status = 'publishing';
-  else if (statuses.some(item => item === 'failed')) status = 'failed';
   else if (statuses.some(item => item === 'scheduled')) status = 'scheduled';
+  else if (statuses.some(item => item === 'failed')) status = 'failed';
 
   const scheduled = networks.map(item => item.scheduledAt).filter(Boolean).map(value => new Date(value).getTime()).filter(Number.isFinite);
   const published = networks.map(item => item.publishedAt).filter(Boolean).map(value => new Date(value).getTime()).filter(Number.isFinite);
@@ -154,7 +154,7 @@ export async function publishNow({ reelId, networks }) {
     if (safeFallback.length) {
       const fallback = await scheduleUploadPostFallback({
         reelId: id,
-        scheduledAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+        scheduledAt: new Date(Date.now() + 90 * 1000).toISOString(),
         networks: safeFallback,
         allowFailedBufferTakeover: true,
       });
@@ -168,8 +168,8 @@ export async function publishNow({ reelId, networks }) {
         fallback,
         blockedNetworks: remaining,
         message: remaining.length
-          ? `Buffer está limitado; se activó el respaldo seguro para ${safeFallback.join(', ')}. Quedan pendientes: ${remaining.join(', ')}.`
-          : 'Buffer está limitado; la publicación se derivó al respaldo seguro.',
+          ? `Buffer está limitado; se activó la contingencia para ${safeFallback.join(', ')}. Quedan pendientes: ${remaining.join(', ')}.`
+          : 'Buffer está limitado; la publicación se derivó automáticamente al proveedor de contingencia.',
         publication: publicationSnapshot(after),
       };
     }
