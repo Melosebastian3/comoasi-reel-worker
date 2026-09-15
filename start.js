@@ -10,11 +10,20 @@ const clean = value => String(value || '').trim();
 const timer = setTimeout(() => {
   void (async () => {
     try {
+      const contingency = await import('./contingency-engine.js');
+      contingency.startContingencyDispatcher(30000);
+      const initial = await contingency.runContingencyCycle();
+      console.info('[como-asi] initial contingency cycle complete', JSON.stringify(initial));
+    } catch (error) {
+      console.error('[como-asi] contingency bootstrap failed', error?.message || error);
+    }
+
+    try {
       const emergencyReelId = clean(process.env.UPLOAD_POST_EMERGENCY_REEL_ID);
       const emergencyNetworks = clean(process.env.UPLOAD_POST_EMERGENCY_NETWORKS)
         .split(',')
         .map(item => clean(item).toLowerCase())
-        .filter(item => ['instagram', 'youtube'].includes(item));
+        .filter(item => ['instagram', 'tiktok', 'youtube'].includes(item));
       if (emergencyReelId && emergencyNetworks.length) {
         const fallback = await import('./upload-post-fallback.js');
         const scheduledAt = new Date(Date.now() + 4 * 60 * 1000).toISOString();
