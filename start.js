@@ -3,8 +3,31 @@ await import('./render-output-hardening.js');
 await import('./publisher-failover-hardening.js');
 await import('./server.js');
 
+const clean = value => String(value || '').trim();
+
 const timer = setTimeout(() => {
   void (async () => {
+    try {
+      const emergencyReelId = clean(process.env.UPLOAD_POST_EMERGENCY_REEL_ID);
+      const emergencyNetworks = clean(process.env.UPLOAD_POST_EMERGENCY_NETWORKS)
+        .split(',')
+        .map(item => clean(item).toLowerCase())
+        .filter(item => ['instagram', 'youtube'].includes(item));
+      if (emergencyReelId && emergencyNetworks.length) {
+        const fallback = await import('./upload-post-fallback.js');
+        const scheduledAt = new Date(Date.now() + 4 * 60 * 1000).toISOString();
+        const result = await fallback.scheduleUploadPostFallback({
+          reelId: emergencyReelId,
+          scheduledAt,
+          networks: emergencyNetworks,
+          allowFailedBufferTakeover: true,
+        });
+        console.info('[como-asi] emergency Upload-Post takeover ready', emergencyReelId, emergencyNetworks.join(','), Boolean(result?.duplicatePrevented) ? 'existing' : 'scheduled');
+      }
+    } catch (error) {
+      console.error('[como-asi] emergency Upload-Post takeover failed', error?.message || error);
+    }
+
     try {
       const optimizer = await import('./optimize-buffer-assets.js');
       const optimized = await optimizer.optimizeScheduledBufferAssets();
