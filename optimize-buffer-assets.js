@@ -8,14 +8,17 @@ import { query } from './db.js';
 import { getAssetUrl, uploadAsset } from './engine.js';
 
 const maxBytes = 80 * 1024 * 1024;
+const maxInstagramAudioBitrate = 128000;
 
-function run(command, args) {
+function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
     let stderr = '';
-    child.stderr.on('data', chunk => { stderr += chunk.toString(); });
+    child.stdout?.on('data', chunk => { stdout += chunk.toString(); });
+    child.stderr?.on('data', chunk => { stderr += chunk.toString(); });
     child.on('error', reject);
-    child.on('close', code => code === 0 ? resolve() : reject(new Error(`${command} exited ${code}: ${stderr.slice(-3000)}`)));
+    child.on('close', code => code === 0 ? resolve({ stdout, stderr }) : reject(new Error(`${command} exited ${code}: ${stderr.slice(-3000)}`)));
   });
 }
 
@@ -30,6 +33,22 @@ async function download(url, filePath) {
   }
 }
 
+async function probeAudioBitrate(filePath) {
+  try {
+    const { stdout } = await run('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'a:0',
+      '-show_entries', 'stream=bit_rate',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath,
+    ]);
+    const bitrate = Number.parseInt(String(stdout || '').trim(), 10);
+    return Number.isFinite(bitrate) ? bitrate : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function optimizeOne(reel) {
   const signedUrl = await getAssetUrl(reel.video_object_key);
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'comoasi-optimize-'));
@@ -40,28 +59,33 @@ async function optimizeOne(reel) {
     await download(signedUrl, input);
     const inputStat = await fs.stat(input);
     const before = inputStat.size;
-    if (before <= maxBytes) {
-      console.info(`[como-asi] Buffer asset already optimized ${reel.id}: ${before} bytes`);
-      return { reelId: reel.id, skipped: true, before, after: before };
+    const audioBitrate = await probeAudioBitrate(input);
+    const audioSafe = audioBitrate > 0 && audioBitrate <= maxInstagramAudioBitrate;
+
+    if (before <= maxBytes && audioSafe) {
+      console.info(`[como-asi] Buffer asset already Instagram-safe ${reel.id}: ${before} bytes / ${audioBitrate} bps audio`);
+      return { reelId: reel.id, skipped: true, before, after: before, audioBitrate };
     }
 
-    console.info(`[como-asi] optimizing Buffer asset ${reel.id}: ${before} bytes`);
+    const needsVideoCompression = before > maxBytes;
+    console.info(`[como-asi] optimizing Buffer asset ${reel.id}: ${before} bytes / ${audioBitrate || 'unknown'} bps audio`);
+    const videoArgs = needsVideoCompression
+      ? ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-maxrate', '5M', '-bufsize', '10M', '-pix_fmt', 'yuv420p', '-r', '30', '-g', '60', '-keyint_min', '30', '-threads', '2']
+      : ['-c:v', 'copy'];
     await run('ffmpeg', [
       '-y', '-i', input,
       '-map', '0:v:0', '-map', '0:a?',
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
-      '-maxrate', '5M', '-bufsize', '10M', '-pix_fmt', 'yuv420p',
-      '-r', '30', '-g', '60', '-keyint_min', '30',
-      '-threads', '2',
-      '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2',
+      ...videoArgs,
+      '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',
       '-movflags', '+faststart',
       output,
     ]);
     const outputStat = await fs.stat(output);
-    if (outputStat.size <= 0 || outputStat.size >= before) throw new Error(`asset_optimization_not_effective:${outputStat.size}`);
+    if (outputStat.size <= 0) throw new Error(`asset_optimization_invalid_output:${outputStat.size}`);
     await uploadAsset(reel.video_object_key, output, 'video/mp4');
-    console.info(`[como-asi] Buffer asset optimized ${reel.id}: ${before} -> ${outputStat.size} bytes`);
-    return { reelId: reel.id, skipped: false, before, after: outputStat.size };
+    const finalAudioBitrate = await probeAudioBitrate(output);
+    console.info(`[como-asi] Buffer asset Instagram-safe ${reel.id}: ${before} -> ${outputStat.size} bytes / ${finalAudioBitrate} bps audio`);
+    return { reelId: reel.id, skipped: false, before, after: outputStat.size, audioBitrateBefore: audioBitrate, audioBitrateAfter: finalAudioBitrate };
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   }
@@ -73,7 +97,7 @@ export async function optimizeScheduledBufferAssets() {
       from comoasi.publishing_queue q
       join comoasi.reels r on r.id=q.reel_id
      where q.account_key='buffer'
-       and q.scheduled_at >= now() - interval '4 hours'
+       and q.scheduled_at >= now() - interval '6 hours'
        and q.scheduled_at <= now() + interval '24 hours'
        and r.status='ready'
        and r.video_object_key is not null
