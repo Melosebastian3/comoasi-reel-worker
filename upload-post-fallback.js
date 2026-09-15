@@ -105,7 +105,30 @@ async function saveRows({ reelId, networks, scheduledAt, jobId, idempotencyKey, 
   return saved;
 }
 
-export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks }) {
+async function supersedeFailedBufferRows(reelId, networks, jobId) {
+  await query(
+    `update comoasi.publishing_queue
+        set status='superseded',
+            publish_payload=coalesce(publish_payload,'{}'::jsonb) || $3::jsonb,
+            updated_at=now()
+      where reel_id=$1
+        and account_key='buffer'
+        and platform = any($2::text[])
+        and published_at is null
+        and error is not null`,
+    [
+      reelId,
+      networks,
+      JSON.stringify({
+        supersededBy: 'upload-post',
+        uploadPostJobId: jobId,
+        supersededAt: new Date().toISOString(),
+      }),
+    ]
+  );
+}
+
+export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks, allowFailedBufferTakeover = false }) {
   if (!uploadPostFallbackReady()) throw new Error('upload_post_not_configured');
   const selected = [...new Set((Array.isArray(networks) ? networks : [])
     .map(item => clean(item).toLowerCase())
@@ -113,11 +136,17 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
   if (!reelId || !selected.length) throw new Error('upload_post_networks_required');
 
   const bufferRows = await query(
-    `select platform, external_post_id, status from comoasi.publishing_queue
+    `select platform, external_post_id, status, error, published_at
+       from comoasi.publishing_queue
       where reel_id=$1 and account_key='buffer' and platform = any($2::text[])`,
     [reelId, selected]
   );
-  const unsafe = bufferRows.rows.filter(row => clean(row.external_post_id) && ['scheduled', 'published', 'publishing'].includes(clean(row.status)));
+  const unsafe = bufferRows.rows.filter(row => {
+    if (!clean(row.external_post_id)) return false;
+    const failedTakeoverAllowed = allowFailedBufferTakeover && !row.published_at && Boolean(clean(row.error));
+    if (failedTakeoverAllowed) return false;
+    return ['scheduled', 'published', 'publishing'].includes(clean(row.status));
+  });
   if (unsafe.length) {
     throw new Error(`upload_post_fallback_blocked_buffer_post_exists:${unsafe.map(row => row.platform).join(',')}`);
   }
@@ -155,6 +184,8 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
   form.append('user', user);
   form.append('video', videoUrl);
   form.append('scheduled_date', scheduledAt);
+  form.append('external_id', `comoasi:${reelId}`);
+  form.append('is_ai_generated', 'true');
   for (const network of selected) form.append('platform[]', network);
 
   const youtube = copyFor(reel, 'youtube');
@@ -166,6 +197,7 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
     form.append('privacyStatus', 'public');
     form.append('defaultLanguage', 'es');
     form.append('defaultAudioLanguage', 'es');
+    form.append('containsSyntheticMedia', 'true');
   }
   if (selected.includes('instagram')) {
     form.append('instagram_title', instagram.text || instagram.title);
@@ -192,6 +224,7 @@ export async function scheduleUploadPostFallback({ reelId, scheduledAt, networks
   if (!jobId) throw new Error('upload_post_job_id_missing');
 
   await saveRows({ reelId, networks: selected, scheduledAt, jobId, idempotencyKey, response: data });
+  if (allowFailedBufferTakeover) await supersedeFailedBufferRows(reelId, selected, jobId);
   console.info('[como-asi] Upload-Post fallback scheduled', reelId, selected.join(','), jobId);
   return {
     ok: true,
