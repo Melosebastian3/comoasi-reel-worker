@@ -16,7 +16,7 @@ export async function reconcileBufferDeliveries() {
       from comoasi.publishing_queue
      where account_key='buffer'
        and external_post_id is not null
-       and scheduled_at >= now() - interval '12 hours'
+       and scheduled_at >= now() - interval '6 hours'
        and (
          status in ('failed', 'publishing')
          or (status='scheduled' and scheduled_at <= now() - interval '5 minutes')
