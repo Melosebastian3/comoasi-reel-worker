@@ -1,6 +1,6 @@
 import { query } from './db.js';
-import { studioCall } from './engine.js';
 import { createJob } from './pipeline.js';
+import { scheduleBufferIdempotent } from './buffer-idempotency.js';
 
 const settingKey = 'metricool_automation_v1';
 const defaultTimezone = 'America/Argentina/Buenos_Aires';
@@ -218,12 +218,7 @@ async function savePlan(plan, slots) {
 }
 
 async function scheduleBuffer({ reelId, scheduledAt, timezone, networks }) {
-  return studioCall('/api/buffer/schedule', {
-    reelId,
-    scheduledAt,
-    timezone,
-    networks,
-  }, { timeoutMs: 120000, attempts: 4 });
+  return scheduleBufferIdempotent({ reelId, scheduledAt, timezone, networks });
 }
 
 export async function scheduleSavedMetricool(input = {}) {
@@ -333,6 +328,7 @@ async function processSlot(slot, config, now) {
   next.buffer = {
     duplicatePrevented: Boolean(scheduled.duplicatePrevented),
     scheduled: Array.isArray(scheduled.scheduled) ? scheduled.scheduled : [],
+    idempotency: clean(scheduled.idempotency) || null,
   };
   return next;
 }
