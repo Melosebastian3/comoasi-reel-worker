@@ -125,7 +125,7 @@ export async function scheduleBufferIdempotent({ reelId, scheduledAt, timezone, 
   }
 
   if (acquired.length) {
-    const scheduled = asObject(await studioCall('/api/buffer/schedule', {
+    const scheduled = asObject(await studioCall('/api/buffer/create', {
       reelId,
       scheduledAt,
       timezone,
