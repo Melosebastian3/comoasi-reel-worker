@@ -1,5 +1,6 @@
 await import('./media-proxy-hardening.js');
 await import('./render-output-hardening.js');
+await import('./editorial-market-hardening.js');
 await import('./publisher-failover-hardening.js');
 await import('./server.js');
 
