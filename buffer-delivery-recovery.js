@@ -12,20 +12,26 @@ function mappedStatus(status) {
 
 export async function reconcileBufferDeliveries() {
   const { rows } = await query(`
-    select distinct reel_id
+    select reel_id, array_agg(platform order by platform) as networks
       from comoasi.publishing_queue
      where account_key='buffer'
-       and scheduled_at >= now() - interval '6 hours'
-       and scheduled_at <= now() + interval '24 hours'
        and external_post_id is not null
+       and scheduled_at >= now() - interval '12 hours'
+       and (
+         status in ('failed', 'publishing')
+         or (status='scheduled' and scheduled_at <= now() - interval '5 minutes')
+       )
+     group by reel_id
+     order by min(scheduled_at)
   `);
 
   const allResults = [];
   for (const row of rows) {
     const reelId = clean(row.reel_id);
-    if (!reelId) continue;
+    const networks = Array.isArray(row.networks) ? row.networks.map(clean).filter(Boolean) : [];
+    if (!reelId || !networks.length) continue;
     try {
-      const response = await studioCall('/api/buffer/recover', { reelId }, { timeoutMs: 120000, attempts: 3 });
+      const response = await studioCall('/api/buffer/recover', { reelId, networks }, { timeoutMs: 60000, attempts: 1 });
       const results = Array.isArray(response?.results) ? response.results : [];
       for (const item of results) {
         const network = clean(item?.network).toLowerCase();
@@ -64,15 +70,19 @@ export async function reconcileBufferDeliveries() {
         allResults.push({ reelId, network, status, dbStatus, postId, recovered: Boolean(item?.recovered), dueAt, error: errorMessage });
       }
     } catch (error) {
-      console.error('[como-asi] Buffer delivery reconciliation failed', reelId, error?.message || error);
-      allResults.push({ reelId, error: error?.message || String(error) });
+      const message = error?.message || String(error);
+      const rateLimited = message.includes('429') || message.includes('Too many requests');
+      if (rateLimited) console.warn('[como-asi] Buffer delivery recovery rate-limited; backing off until next cycle');
+      else console.error('[como-asi] Buffer delivery reconciliation failed', reelId, message);
+      allResults.push({ reelId, rateLimited, error: message });
+      if (rateLimited) break;
     }
   }
   console.info('[como-asi] Buffer delivery reconciliation complete', JSON.stringify(allResults));
   return allResults;
 }
 
-export function startBufferDeliveryRecovery(intervalMs = 300000) {
+export function startBufferDeliveryRecovery(intervalMs = 900000) {
   const timer = setInterval(() => {
     void reconcileBufferDeliveries().catch(error => console.error('[como-asi] Buffer delivery recovery tick failed', error?.message || error));
   }, intervalMs);
