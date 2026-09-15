@@ -1,11 +1,11 @@
 {
   "name": "comoasi-reel-worker",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "check": "node --check server.js && node --check db.js && node --check pipeline.js && node --check engine.js && node --check render.js && node --check job-runner.js && node --check social-publisher.js && node --check buffer-automation.js"
+    "start": "node media-proxy-hardening.js && node server.js",
+    "check": "node --check media-proxy-hardening.js && node --check server.js && node --check db.js && node --check pipeline.js && node --check engine.js && node --check render.js && node --check job-runner.js && node --check social-publisher.js && node --check buffer-automation.js && node --check buffer-idempotency.js"
   },
   "engines": {"node": ">=20"},
   "dependencies": {
