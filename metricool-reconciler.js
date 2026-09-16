@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { query } from './db.js';
 import { studioCall } from './engine.js';
 import { keepMetricoolSessionAlive } from './metricool-automation.js';
+import { scheduleBufferIdempotent } from './buffer-idempotency.js';
 
 const settingKey = 'metricool_automation_v1';
 const defaultTimezone = 'America/Argentina/Buenos_Aires';
@@ -107,6 +108,7 @@ async function markPublished(result) {
     publishedAtExact,
     publishedAtSource: publishedAtExact ? 'metricool-analytics' : 'awaiting-metricool-analytics',
     publishedAtLocal: clean(result.publishedAtLocal) || null,
+    fallbackBlockedUntilConfirmed: false,
   };
   const updated = await query(
     `update comoasi.publishing_queue
@@ -128,6 +130,112 @@ async function markPublished(result) {
     [reelId, network, scheduledAt, exactPublishedAt || null, externalId, JSON.stringify(payload), publishedAtExact]
   );
   return Boolean(updated.rows[0]);
+}
+
+function confirmedProviderFailure(result) {
+  const diagnostic = asObject(result.diagnostic);
+  const remoteSummary = asObject(diagnostic.remoteSummary);
+  const providers = Array.isArray(remoteSummary.providers) ? remoteSummary.providers.map(asObject) : [];
+  const network = clean(result.network).toLowerCase();
+  const provider = providers.find(item => clean(item.network).toLowerCase() === network);
+  if (!provider) return null;
+  const status = clean(provider.status).toUpperCase();
+  if (!['FAILED', 'ERROR', 'FAILURE', 'REJECTED'].includes(status)) return null;
+  return {
+    status,
+    error: clean(provider.error || provider.detailedStatus || status).slice(0, 500),
+  };
+}
+
+async function setMetricoolFallbackPayload(reelId, network, patch, status = null, error = null) {
+  const params = [reelId, network, JSON.stringify(patch), status, error];
+  await query(
+    `update comoasi.publishing_queue
+        set publish_payload=coalesce(publish_payload,'{}'::jsonb) || $3::jsonb,
+            status=coalesce($4,status),
+            error=$5,
+            updated_at=now()
+      where reel_id=$1 and platform=$2 and account_key='metricool'`,
+    params
+  );
+}
+
+function ambiguousBufferError(value) {
+  return /AbortError|timeout|timed out|fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket|network/i.test(clean(value));
+}
+
+async function handleConfirmedMetricoolFailure(result, context, failure) {
+  const reelId = clean(result.reelId);
+  const network = clean(result.network).toLowerCase();
+  const detectedAt = new Date().toISOString();
+  await setMetricoolFallbackPayload(reelId, network, {
+    reconciliationState: 'failed',
+    reconciliationSource: 'metricool-planner-provider-status',
+    reconciliationCheckedAt: detectedAt,
+    metricoolFailureStatus: failure.status,
+    metricoolFailureError: failure.error,
+    fallbackBlockedUntilConfirmed: false,
+    fallbackState: 'buffer-scheduling',
+    fallbackTriggeredAt: detectedAt,
+  }, 'failed', failure.error || `metricool_${failure.status.toLowerCase()}`);
+
+  const fallbackScheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+  try {
+    const buffer = await scheduleBufferIdempotent({
+      reelId,
+      scheduledAt: fallbackScheduledAt,
+      timezone: context.timezone,
+      networks: [network],
+    });
+    await setMetricoolFallbackPayload(reelId, network, {
+      fallbackState: 'buffer-scheduled',
+      fallbackProvider: 'buffer',
+      fallbackScheduledAt,
+      fallbackConfirmedAt: new Date().toISOString(),
+      fallbackDuplicatePrevented: Boolean(buffer?.duplicatePrevented),
+    }, 'failed', failure.error || null);
+    console.warn('[como-asi] Metricool confirmed failure handed to Buffer', reelId, network, failure.status);
+    return { ok: true, provider: 'buffer', scheduledAt: fallbackScheduledAt };
+  } catch (error) {
+    const message = clean(error?.message || error).slice(0, 500) || 'buffer_fallback_failed';
+    if (ambiguousBufferError(message)) {
+      await setMetricoolFallbackPayload(reelId, network, {
+        fallbackState: 'buffer-uncertain',
+        fallbackProvider: 'buffer',
+        fallbackLastError: message,
+        fallbackBlockedUntilConfirmed: true,
+        fallbackCheckedAt: new Date().toISOString(),
+      }, 'failed', failure.error || null);
+      console.error('[como-asi] Buffer fallback outcome uncertain; fail-closed', reelId, network, message);
+      return { ok: false, uncertain: true, error: message };
+    }
+
+    await query(
+      `update comoasi.publishing_queue
+          set status='failed',
+              error=$3,
+              publish_payload=coalesce(publish_payload,'{}'::jsonb) || $4::jsonb,
+              updated_at=now()
+        where reel_id=$1
+          and platform=$2
+          and account_key='buffer'
+          and external_post_id is null
+          and status='publishing'`,
+      [reelId, network, message, JSON.stringify({
+        failedAfterMetricoolTakeover: true,
+        failureConfirmedAt: new Date().toISOString(),
+      })]
+    );
+    await setMetricoolFallbackPayload(reelId, network, {
+      fallbackState: 'buffer-failed-contingency',
+      fallbackProvider: 'buffer',
+      fallbackLastError: message,
+      fallbackBlockedUntilConfirmed: false,
+      fallbackCheckedAt: new Date().toISOString(),
+    }, 'failed', failure.error || null);
+    console.warn('[como-asi] Buffer fallback failed definitively; contingency will try Upload-Post', reelId, network, message);
+    return { ok: false, provider: 'buffer', error: message };
+  }
 }
 
 async function markPending(result) {
@@ -171,7 +279,7 @@ export async function reconcileMetricoolPublications() {
     const context = await connectionContext();
     if (!context) return { ok: true, skipped: true, reason: 'metricool_not_connected' };
     const items = await candidates();
-    if (!items.length) return { ok: true, checked: 0, published: 0, pending: 0 };
+    if (!items.length) return { ok: true, checked: 0, published: 0, pending: 0, failed: 0 };
 
     const response = asObject(await studioCall('/api/metricool/oauth/reconcile', {
       accessToken: context.accessToken,
@@ -182,15 +290,22 @@ export async function reconcileMetricoolPublications() {
     const results = Array.isArray(response.results) ? response.results.map(asObject) : [];
     let published = 0;
     let pending = 0;
+    let failed = 0;
     for (const result of results) {
       if (clean(result.state) === 'published') {
         if (await markPublished(result)) published += 1;
-      } else if (await markPending(result)) {
-        pending += 1;
+        continue;
       }
+      const failure = confirmedProviderFailure(result);
+      if (failure) {
+        await handleConfirmedMetricoolFailure(result, context, failure);
+        failed += 1;
+        continue;
+      }
+      if (await markPending(result)) pending += 1;
     }
-    console.info('[como-asi] Metricool reconciliation complete', JSON.stringify({ checked: items.length, published, pending }));
-    return { ok: true, checked: items.length, published, pending, results };
+    console.info('[como-asi] Metricool reconciliation complete', JSON.stringify({ checked: items.length, published, pending, failed }));
+    return { ok: true, checked: items.length, published, pending, failed, results };
   } catch (error) {
     const message = clean(error?.message || error).slice(0, 500) || 'metricool_reconciliation_failed';
     console.warn('[como-asi] Metricool reconciliation warning', message);
