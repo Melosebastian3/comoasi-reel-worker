@@ -11,7 +11,7 @@ export async function studioCall(route, body, options = {}) {
   if (!studioBase) throw new Error('COMOASI_STUDIO_BASE is not configured');
   const configuredAttempts = Number(options.attempts || 5);
   const attempts = route === '/api/metricool/oauth/schedule'
-    ? Math.max(5, configuredAttempts)
+    ? 1
     : configuredAttempts;
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
