@@ -129,6 +129,7 @@ async function markPending(result) {
     reconciliationSource: clean(result.source) || 'metricool-analytics-pending',
     reconciliationCheckedAt: new Date().toISOString(),
     reconciliationLastError: clean(result.error).slice(0, 300) || null,
+    reconciliationDiagnostic: result.diagnostic && typeof result.diagnostic === 'object' ? result.diagnostic : null,
     plannerUrl: clean(result.plannerUrl) || null,
     fallbackBlockedUntilConfirmed: true,
   };
