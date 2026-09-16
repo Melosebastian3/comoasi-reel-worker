@@ -4,7 +4,7 @@ await import('./editorial-market-hardening.js');
 await import('./native-social-hardening.js');
 await import('./publisher-failover-hardening.js');
 await import('./manual-publish-hardening.js');
-await import('./metricool-contingency-hardening-v2.js');
+await import('./metricool-contingency-hardening.js');
 await import('./server.js');
 
 const clean = value => String(value || '').trim();
