@@ -51,7 +51,13 @@ async function candidates() {
     `select reel_id, platform, scheduled_at, status, publish_payload
        from comoasi.publishing_queue
       where account_key='metricool'
-        and status in ('scheduled','publishing')
+        and (
+          status in ('scheduled','publishing')
+          or (
+            status='published'
+            and coalesce(publish_payload->>'publishedAtExact','false')='false'
+          )
+        )
         and scheduled_at <= now() - interval '30 seconds'
         and scheduled_at >= now() - interval '72 hours'
       order by scheduled_at asc
@@ -84,24 +90,28 @@ async function markPublished(result) {
   const reelId = clean(result.reelId);
   const network = clean(result.network).toLowerCase();
   const scheduledAt = scheduledIso(result.scheduledAt);
-  const publishedAt = scheduledIso(result.publishedAt) || scheduledAt;
+  const exactPublishedAt = scheduledIso(result.publishedAt);
+  const publishedAtExact = Boolean(exactPublishedAt) && result.publishedAtExact !== false;
   const externalId = clean(result.externalId);
   const externalUrl = clean(result.externalUrl);
-  if (!reelId || !network || !scheduledAt || !publishedAt) return false;
+  if (!reelId || !network || !scheduledAt) return false;
   const payload = {
     provider: 'metricool',
     priority: 1,
-    deliveryStatus: 'sent',
+    deliveryStatus: 'published',
     externalLink: externalUrl || null,
     reconciliationState: 'published',
-    reconciliationSource: clean(result.source) || 'metricool-analytics',
+    reconciliationSource: clean(result.source) || 'metricool-planner-provider-status',
     reconciliationCheckedAt: new Date().toISOString(),
+    publicationConfirmedAt: clean(result.confirmedAt) || new Date().toISOString(),
+    publishedAtExact,
+    publishedAtSource: publishedAtExact ? 'metricool-analytics' : 'awaiting-metricool-analytics',
     publishedAtLocal: clean(result.publishedAtLocal) || null,
   };
   const updated = await query(
     `update comoasi.publishing_queue
         set status='published',
-            published_at=$4,
+            published_at=case when $7::boolean then $4::timestamptz else published_at end,
             external_post_id=coalesce(nullif($5,''), external_post_id),
             publish_payload=coalesce(publish_payload,'{}'::jsonb) || $6::jsonb,
             error=null,
@@ -110,9 +120,12 @@ async function markPublished(result) {
         and platform=$2
         and account_key='metricool'
         and scheduled_at=$3
-        and status in ('scheduled','publishing')
+        and (
+          status in ('scheduled','publishing')
+          or (status='published' and coalesce(publish_payload->>'publishedAtExact','false')='false')
+        )
       returning id`,
-    [reelId, network, scheduledAt, publishedAt, externalId, JSON.stringify(payload)]
+    [reelId, network, scheduledAt, exactPublishedAt || null, externalId, JSON.stringify(payload), publishedAtExact]
   );
   return Boolean(updated.rows[0]);
 }
