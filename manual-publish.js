@@ -1,11 +1,8 @@
 import { query } from './db.js';
-import { studioCall } from './engine.js';
-import { scheduleUploadPostFallback } from './upload-post-fallback.js';
+import { scheduleSavedMetricool } from './metricool-automation.js';
 
 const supportedNetworks = ['instagram', 'tiktok', 'youtube'];
-const fallbackNetworks = new Set(supportedNetworks);
 const clean = value => String(value || '').trim();
-const asObject = value => value && typeof value === 'object' ? value : {};
 
 function normalizeNetworks(value) {
   const source = Array.isArray(value) && value.length ? value : supportedNetworks;
@@ -67,50 +64,6 @@ function publicationSnapshot(rows) {
   return { status: overdue ? 'overdue' : status, scheduledAt, publishedAt, networks };
 }
 
-async function syncBufferResult(reelId, item, triggeredAt) {
-  const network = clean(item.network).toLowerCase();
-  const postId = clean(item.postId);
-  if (!supportedNetworks.includes(network) || !postId) return;
-  const remoteStatus = clean(item.status).toLowerCase();
-  const status = remoteStatus === 'sent' || remoteStatus === 'published'
-    ? 'published'
-    : remoteStatus === 'sending' || remoteStatus === 'publishing'
-      ? 'publishing'
-      : 'scheduled';
-  const scheduledAt = clean(item.dueAt) || new Date(Date.now() + 2 * 60 * 1000).toISOString();
-  const publishedAt = status === 'published' ? clean(item.sentAt) || new Date().toISOString() : null;
-  const payload = {
-    provider: 'buffer',
-    postId,
-    manualTriggerAt: triggeredAt,
-    deliveryStatus: remoteStatus || status,
-    deliveryCheckedAt: new Date().toISOString(),
-    externalLink: clean(item.externalLink) || null,
-  };
-
-  await query(
-    `insert into comoasi.publishing_queue as q
-      (reel_id, platform, account_key, scheduled_at, status, publish_payload, external_post_id, published_at, error)
-     values($1,$2,'buffer',$3,$4,$5::jsonb,$6,$7,null)
-     on conflict (reel_id, platform, account_key) where account_key='buffer'
-     do update set
-       scheduled_at=excluded.scheduled_at,
-       status=excluded.status,
-       publish_payload=(q.publish_payload - 'leaseToken' - 'leaseExpiresAt') || excluded.publish_payload,
-       external_post_id=excluded.external_post_id,
-       published_at=coalesce(excluded.published_at, q.published_at),
-       error=null,
-       updated_at=now()`,
-    [reelId, network, scheduledAt, status, JSON.stringify(payload), postId, publishedAt]
-  );
-}
-
-function safeFallbackForNetwork(rows, network) {
-  if (!fallbackNetworks.has(network)) return false;
-  const bufferRows = rows.filter(row => clean(row.account_key) === 'buffer' && clean(row.platform) === network);
-  return !bufferRows.some(row => clean(row.external_post_id) && ['scheduled', 'publishing', 'published'].includes(clean(row.status)));
-}
-
 export async function publishNow({ reelId, networks }) {
   const id = clean(reelId);
   if (!id) throw new Error('reel_id_required');
@@ -129,53 +82,20 @@ export async function publishNow({ reelId, networks }) {
     return { ok: true, alreadyPublished: true, publication: publicationSnapshot(before), results: [] };
   }
 
-  const triggeredAt = new Date().toISOString();
-  try {
-    const response = asObject(await studioCall('/api/buffer/publish-now', {
-      reelId: id,
-      networks: pending,
-    }, { timeoutMs: 120000, attempts: 1 }));
-    const results = Array.isArray(response.results) ? response.results.map(asObject) : [];
-    for (const item of results) await syncBufferResult(id, item, triggeredAt);
-    const after = await queueRows(id);
-    return {
-      ok: true,
-      provider: 'buffer',
-      alreadyPublished: false,
-      results,
-      publication: publicationSnapshot(after),
-    };
-  } catch (error) {
-    const message = clean(error?.message || error);
-    const rateLimited = message.includes('429') || message.includes('Too many requests') || message.includes('window=24h');
-    if (!rateLimited) throw error;
-
-    const safeFallback = pending.filter(network => safeFallbackForNetwork(before, network));
-    if (safeFallback.length) {
-      const fallback = await scheduleUploadPostFallback({
-        reelId: id,
-        scheduledAt: new Date(Date.now() + 90 * 1000).toISOString(),
-        networks: safeFallback,
-        allowFailedBufferTakeover: true,
-      });
-      const remaining = pending.filter(network => !safeFallback.includes(network));
-      const after = await queueRows(id);
-      return {
-        ok: true,
-        provider: remaining.length ? 'hybrid' : 'upload-post',
-        partial: remaining.length > 0,
-        alreadyPublished: false,
-        fallback,
-        blockedNetworks: remaining,
-        message: remaining.length
-          ? `Buffer está limitado; se activó la contingencia para ${safeFallback.join(', ')}. Quedan pendientes: ${remaining.join(', ')}.`
-          : 'Buffer está limitado; la publicación se derivó automáticamente al proveedor de contingencia.',
-        publication: publicationSnapshot(after),
-      };
-    }
-
-    const blocked = new Error('buffer_rate_limited_manual_publish_blocked');
-    blocked.detail = 'Buffer está limitando consultas y hay publicaciones existentes cuyo estado no se puede confirmar. No se forzó un segundo envío para evitar duplicados.';
-    throw blocked;
-  }
+  const scheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+  const result = await scheduleSavedMetricool({
+    reelId: id,
+    scheduledAt,
+    timezone: 'America/Argentina/Buenos_Aires',
+    networks: pending,
+  });
+  const after = await queueRows(id);
+  return {
+    ok: true,
+    provider: result.provider || 'metricool',
+    providerOrder: ['metricool', 'buffer', 'upload-post'],
+    alreadyPublished: false,
+    result,
+    publication: publicationSnapshot(after),
+  };
 }
