@@ -7,6 +7,20 @@ const validPlanStatus = "slots.every(slot => slot.status === 'scheduled' || slot
 if (automationSource.includes(invalidPlanStatus)) {
   automationSource = automationSource.replace(invalidPlanStatus, validPlanStatus);
 }
+
+const discoveryAnchor = 'export async function automationTick() {';
+const discoveryHelper = `async function discoverAndActivateMetricoolBrand(config) {\n  if (!config?.accessTokenEnc || config.brandId) return config;\n  try {\n    const accessToken = await refreshedAccessToken(config, 0);\n    const response = asObject(await studioCall('/api/metricool/oauth/brands', { accessToken }, { timeoutMs: 60000, attempts: 1 }));\n    const brands = (Array.isArray(response.brands) ? response.brands : []).map(asObject).map(brand => ({\n      id: clean(brand.id),\n      label: clean(brand.label),\n      timezone: clean(brand.timezone) || config.timezone || defaultTimezone,\n      networks: [...new Set((Array.isArray(brand.networks) ? brand.networks : []).map(item => clean(item).toLowerCase()).filter(item => defaultNetworks.includes(item)))],\n    })).filter(brand => brand.id);\n    const preferred = brands.find(brand => defaultNetworks.every(network => brand.networks.includes(network))) || (brands.length === 1 ? brands[0] : null);\n    if (!preferred) {\n      console.warn('[como-asi] Metricool brand discovery found no unambiguous Mala Fama brand', brands.map(brand => brand.id + ':' + brand.networks.join(',')).join(';'));\n      return config;\n    }\n    const next = {\n      ...config,\n      provider: 'metricool',\n      providerOrder: ['metricool', 'buffer', 'upload-post'],\n      brandId: preferred.id,\n      brandLabel: preferred.label && preferred.label !== 'Marca vacía' ? preferred.label : 'Mala Fama',\n      timezone: preferred.timezone,\n      networks: defaultNetworks,\n      enabled: true,\n      activatedAt: new Date().toISOString(),\n      lastError: null,\n    };\n    await saveConfig(next);\n    console.info('[como-asi] Metricool brand auto-activated', preferred.id, next.brandLabel, preferred.networks.join(','));\n    return await loadConfig() || next;\n  } catch (error) {\n    console.warn('[como-asi] Metricool brand auto-discovery failed', clean(error?.message || error));\n    return config;\n  }\n}\n\n`;
+if (!automationSource.includes('async function discoverAndActivateMetricoolBrand')) {
+  if (!automationSource.includes(discoveryAnchor)) throw new Error('metricool_brand_discovery_anchor_not_found');
+  automationSource = automationSource.replace(discoveryAnchor, `${discoveryHelper}${discoveryAnchor}`);
+}
+
+const tickAnchor = `    let config = await loadConfig();\n    if (!config?.enabled) return automationStatus();`;
+const tickReplacement = `    let config = await loadConfig();\n    if (!config?.enabled) return automationStatus();\n    if (config.accessTokenEnc && !config.brandId) config = await discoverAndActivateMetricoolBrand(config);`;
+if (!automationSource.includes('if (config.accessTokenEnc && !config.brandId) config = await discoverAndActivateMetricoolBrand(config);')) {
+  if (!automationSource.includes(tickAnchor)) throw new Error('metricool_brand_discovery_tick_anchor_not_found');
+  automationSource = automationSource.replace(tickAnchor, tickReplacement);
+}
 await fs.writeFile(automationPath, automationSource, 'utf8');
 
 const serverPath = new URL('./server.js', import.meta.url);
@@ -37,4 +51,4 @@ if (!contingencySource.includes("m.account_key='metricool'")) {
 }
 await fs.writeFile(contingencyPath, contingencySource, 'utf8');
 
-console.log('[como-asi] Metricool primary hardening applied (Metricool -> Buffer -> Upload-Post; duplicate guards active)');
+console.log('[como-asi] Metricool primary hardening applied (Metricool -> Buffer -> Upload-Post; duplicate guards + brand auto-discovery active)');
