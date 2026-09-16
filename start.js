@@ -6,6 +6,8 @@ await import('./publisher-failover-hardening.js');
 await import('./manual-publish-hardening.js');
 await import('./metricool-contingency-hardening.js');
 await import('./server.js');
+const metricoolReconciler = await import('./metricool-reconciler.js');
+metricoolReconciler.startMetricoolReconciliationDispatcher(60000);
 
 const clean = value => String(value || '').trim();
 
