@@ -5,9 +5,12 @@ await import('./native-social-hardening.js');
 await import('./publisher-failover-hardening.js');
 await import('./manual-publish-hardening.js');
 await import('./metricool-contingency-hardening.js');
+await import('./final-freeze-hardening.js');
 await import('./server.js');
 const metricoolReconciler = await import('./metricool-reconciler.js');
 metricoolReconciler.startMetricoolReconciliationDispatcher(60000);
+const performanceLearning = await import('./performance-learning.js');
+performanceLearning.startPerformanceLearningDispatcher(30 * 60 * 1000);
 
 const clean = value => String(value || '').trim();
 
