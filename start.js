@@ -9,6 +9,8 @@ await import('./final-freeze-hardening.js');
 await import('./server.js');
 const metricoolReconciler = await import('./metricool-reconciler.js');
 metricoolReconciler.startMetricoolReconciliationDispatcher(60000);
+const brandHealth = await import('./metricool-brand-health.js');
+brandHealth.startMetricoolBrandHealthDispatcher(5 * 60 * 1000);
 const performanceLearning = await import('./performance-learning.js');
 performanceLearning.startPerformanceLearningDispatcher(30 * 60 * 1000);
 
