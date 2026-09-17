@@ -5,7 +5,6 @@ import { studioCall } from './engine.js';
 const settingKey = 'metricool_automation_v1';
 const clean = value => String(value ?? '').trim();
 const parseSetting = value => value && typeof value === 'object' ? value : (() => { try { return JSON.parse(String(value || '{}')); } catch { return {}; } })();
-let inventoryLogged = false;
 
 function encryptionKey() {
   const secret = clean(process.env.SOCIAL_TOKEN_ENCRYPTION_KEY);
@@ -30,20 +29,6 @@ async function patch(value) {
   await query(`update comoasi.app_settings set value=coalesce(value,'{}'::jsonb) || $2::jsonb, updated_at=now() where key=$1`, [settingKey, JSON.stringify(value)]);
 }
 
-async function logBrandInventory(accessToken) {
-  if (inventoryLogged) return null;
-  try {
-    const result = await studioCall('/api/metricool/oauth/brands', { accessToken }, { timeoutMs: 60000, attempts: 3 });
-    const brands = Array.isArray(result?.brands) ? result.brands : [];
-    console.info('[como-asi] Metricool OAuth brand inventory', JSON.stringify(brands.map(item => ({ id: clean(item?.id), label: clean(item?.label), networks: Array.isArray(item?.networks) ? item.networks : [] }))));
-    inventoryLogged = true;
-    return brands;
-  } catch (error) {
-    console.warn('[como-asi] Metricool brand inventory warning', clean(error?.message || error));
-    return null;
-  }
-}
-
 export async function checkMetricoolBrandAccess() {
   const current = await config();
   const brandId = clean(current?.brandId);
@@ -53,7 +38,6 @@ export async function checkMetricoolBrandAccess() {
     await patch({ brandAccessOk: false, brandAccessCheckedAt: checkedAt, brandAccessError: 'metricool_connection_incomplete' });
     return { accessible: false, reason: 'metricool_connection_incomplete' };
   }
-  await logBrandInventory(accessToken);
   try {
     const result = await studioCall('/api/metricool/oauth/brand-health', {
       accessToken,
