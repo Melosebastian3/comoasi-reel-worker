@@ -63,6 +63,77 @@ async function nativeTakeover({ reelId, networks, scheduledAt }) {
   return { ok: true, networks: pending, jobs };
 }
 
+async function cancelSupersededUploadPostJobs() {
+  if (!uploadPostFallbackReady()) return [];
+  const apiKey = clean(process.env.UPLOAD_POST_API_KEY);
+  if (!apiKey) return [];
+
+  const { rows } = await query(`
+    select distinct u.external_post_id
+      from comoasi.publishing_queue u
+     where u.account_key='upload-post'
+       and u.external_post_id is not null
+       and u.status in ('scheduled','publishing')
+       and u.scheduled_at > now() + interval '2 minutes'
+       and not exists (
+         select 1
+           from comoasi.publishing_queue u2
+          where u2.account_key='upload-post'
+            and u2.external_post_id=u.external_post_id
+            and not exists (
+              select 1
+                from comoasi.publishing_queue b
+               where b.reel_id=u2.reel_id
+                 and b.platform=u2.platform
+                 and b.account_key='buffer'
+                 and b.external_post_id is not null
+                 and b.status in ('scheduled','publishing','published')
+            )
+       )
+     order by u.external_post_id
+  `);
+
+  const results = [];
+  for (const row of rows) {
+    const jobId = clean(row.external_post_id);
+    if (!jobId) continue;
+    try {
+      const response = await fetch(`https://api.upload-post.com/api/uploadposts/schedule/${encodeURIComponent(jobId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Apikey ${apiKey}` },
+        signal: AbortSignal.timeout(30000),
+      });
+      const text = await response.text();
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`upload_post_cancel_failed:${response.status}:${clean(text).slice(0, 300)}`);
+      }
+      await query(
+        `update comoasi.publishing_queue
+            set status='cancelled',
+                error=null,
+                publish_payload=coalesce(publish_payload,'{}'::jsonb) || $2::jsonb,
+                updated_at=now()
+          where account_key='upload-post'
+            and external_post_id=$1
+            and status in ('scheduled','publishing')`,
+        [jobId, JSON.stringify({
+          cancelledAsDuplicate: true,
+          cancelledAt: new Date().toISOString(),
+          cancelHttpStatus: response.status,
+          cancelResponse: clean(text).slice(0, 500),
+        })]
+      );
+      console.info('[como-asi] cancelled superseded Upload-Post job', jobId, response.status);
+      results.push({ ok: true, jobId, status: response.status });
+    } catch (error) {
+      const message = clean(error?.message || error);
+      console.error('[como-asi] superseded Upload-Post cancellation failed', jobId, message);
+      results.push({ ok: false, jobId, error: message });
+    }
+  }
+  return results;
+}
+
 export async function reconcilePendingUploadPostJobs() {
   if (!uploadPostFallbackReady()) return [];
   const { rows } = await query(`
@@ -182,9 +253,10 @@ export async function recoverProviderGaps() {
 }
 
 export async function runContingencyCycle() {
+  const cancellations = await cancelSupersededUploadPostJobs();
   const delivery = await reconcilePendingUploadPostJobs();
   const failover = await recoverProviderGaps();
-  return { delivery, failover };
+  return { cancellations, delivery, failover };
 }
 
 export function startContingencyDispatcher(intervalMs = 30000) {
