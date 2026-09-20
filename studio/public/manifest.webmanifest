@@ -1,0 +1,27 @@
+{
+  "name": "¿Cómo Así? Studio",
+  "short_name": "¿Cómo Así?",
+  "description": "Radar, creación, biblioteca y publicación de Reels de ¿Cómo Así?.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b0b0b",
+  "theme_color": "#d9ff42",
+  "categories": ["entertainment", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
