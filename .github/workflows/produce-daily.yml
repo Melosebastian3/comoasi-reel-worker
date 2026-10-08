@@ -39,6 +39,10 @@ jobs:
       HF_HOME: ${{ github.workspace }}/.cache/huggingface
       OLLAMA_MODELS: ${{ github.workspace }}/.cache/ollama
     steps:
+      - name: Check database secret
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::Falta el secreto DATABASE_URL"; exit 1; fi
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -72,10 +76,6 @@ jobs:
           (ollama serve > ollama.log 2>&1 &)
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 2; done
           ollama pull "$LLM_MODEL"
-
-      - name: Check database secret
-        run: |
-          if [ -z "$DATABASE_URL" ]; then echo "::error::Falta el secreto DATABASE_URL"; exit 1; fi
 
       - name: Produce reels
         run: |

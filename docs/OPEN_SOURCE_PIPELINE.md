@@ -28,7 +28,7 @@ No publica nada.
 ## Prueba local sin internet
 
 ```
-psql "$DATABASE_URL" -f db/schema-inferred.sql   # nunca contra la base de producción
+psql "$DATABASE_URL" -f db/schema.sql   # solo para bases vacías
 PORT=8089 node test/mock-llm.js &
 ENGINE_MODE=local LLM_BASE_URL=http://127.0.0.1:8089/v1 IMAGE_BACKEND=mock TTS_BACKEND=espeak \
   node --import ./test/offline-fetch.js batch.js --count 1
