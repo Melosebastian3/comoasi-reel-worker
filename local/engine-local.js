@@ -351,7 +351,24 @@ Gener\xE1 internamente al menos 18 candidatos DERIVADOS de estas se\xF1ales y el
       selected = await generateStructured(editorialSystem, `${prompt}
 REINTENTO OBLIGATORIO: la primera elecci\xF3n no alcanz\xF3 el est\xE1ndar de fama/viralidad. Eleg\xED una celebridad cuyo nombre y rostro reconozca el p\xFAblico general del mercado objetivo sin explicaci\xF3n; recognitionScore m\xEDnimo ${minimumRecognition}. Adem\xE1s, el conflicto debe entenderse en una frase, tener consecuencia concreta y viralScore m\xEDnimo 88. Prohibidas figuras de culto o nicho. No repitas un protagonista reciente solo porque ya funcion\xF3 antes.`, schema, 3800);
     }
+    // Local-model guard: small open-source models can invent a celebrity story that is not in the
+    // headlines. The protagonist must be named in at least one of the cited source headlines.
+    const nameTokens = (value) => asString(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((token) => token.length >= 4);
+    const isGrounded = (candidate) => {
+      const tokens = nameTokens(asString(candidate.protagonist).replace(/\([^)]*\)/g, " ")).filter((token) => !["the", "with", "from", "junior"].includes(token));
+      const cited = asArray(candidate.sourceIndexes).map((value) => availableSignals[Math.trunc(Number(value))]).filter(Boolean);
+      return tokens.length > 0 && cited.some((signal) => {
+        const headline = nameTokens(`${signal.title} ${signal.text || ""}`);
+        return tokens.some((token) => headline.includes(token));
+      });
+    };
+    if (!recognitionIsWeak(selected) && !isGrounded(selected)) {
+      console.warn(`[como-asi] topic not grounded in cited headlines: ${asString(selected.protagonist)}`);
+      selected = await generateStructured(editorialSystem, `${prompt}
+CORRECCI\xD3N OBLIGATORIA: la elecci\xF3n anterior no aparec\xEDa en los titulares citados. El protagonista debe estar nombrado textualmente en el titular de al menos una de las se\xF1ales que pongas en sourceIndexes, y el conflicto debe ser el de ese titular. Prohibido inventar historias.`, schema, 3800);
+    }
     if (recognitionIsWeak(selected)) return error("recognizable_protagonist_unavailable", 503);
+    if (!isGrounded(selected)) return error("topic_not_grounded_in_sources", 503);
     const protagonist = asString(selected.protagonist);
     const selectedTitle = asString(selected.title);
     if (!selectedTitle.toLocaleLowerCase("es").includes(protagonist.toLocaleLowerCase("es"))) selected.title = `${protagonist}: ${selectedTitle || asString(selected.topic)}`;
