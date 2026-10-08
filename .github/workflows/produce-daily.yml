@@ -38,8 +38,7 @@ jobs:
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
       LLM_MODEL: qwen2.5:14b-instruct
-      # FLUX.1-schnell is gated on Hugging Face (needs a token); SDXL-Lightning is open.
-      IMAGE_MODEL: sdxl-lightning
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
     steps:
       - name: Check secrets
         run: |
@@ -77,6 +76,8 @@ jobs:
           [ -n "$DATE" ] || DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F)
           echo "RUN_DATE=$DATE" >> "$GITHUB_ENV"
           mkdir -p bundle
+          # FLUX.1-schnell is gated on Hugging Face and needs a read token; without one, SDXL-Lightning.
+          if [ -n "$HF_TOKEN" ]; then IMAGE_MODEL=flux-schnell; printf '%s' "$HF_TOKEN" > bundle/hf_token; else IMAGE_MODEL=sdxl-lightning; fi
           node local/sync.js export-context bundle/context.json --date "$DATE"
           git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
           printf '{"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \

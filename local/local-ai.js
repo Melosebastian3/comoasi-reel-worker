@@ -117,6 +117,9 @@ export async function generateJson({ system, prompt, schema, maxTokens, temperat
 // Fixed English description so the host looks the same in every video.
 export const MALA_FAMA_HOST = 'adult male devil talk show host, angular dark burgundy face, two polished black horns curving back, acid green eyes, slicked black hair with one white streak, short pointed beard, fitted black suit, magenta shirt, black gloves, acid green pocket square, blackened metal microphone, sly sideways executioner smile, raised eyebrow';
 export const STYLE_SUFFIX = '2D adult editorial illustration, torn paper collage, expressive ink, halftone, photocopy grain, hard shadows, paparazzi flash, palette of ink black, ivory, acid green, electric magenta, cobalt blue';
+// CLIP-based models (SDXL) only read the first ~77 tokens, so the look goes first and short.
+export const STYLE_LEAD = 'pop art comic caricature illustration, bold black ink outlines, halftone dots, torn paper collage, flat magenta, cobalt blue and acid green colors, not a photo';
+export const MALA_FAMA_HOST_SHORT = 'grinning devil host with dark red skin, black horns, acid green eyes, slicked black hair, black suit, magenta shirt, holding a microphone';
 export const NEGATIVE_PROMPT = 'text, letters, words, logo, watermark, caption, grid, split screen, ui, 3d render, pixar, disney, chibi, anime, plastic, child, nudity, lingerie, photo, blurry, deformed';
 
 // Diffusion models read ~77 English tokens; the Spanish Studio prompts are far longer.
@@ -134,7 +137,10 @@ async function condensePrompt(prompt) {
     temperature: 0.2,
   });
   const subject = String(result.subject || '').replace(/\s+/g, ' ').trim().slice(0, 900);
-  return isHost ? `${MALA_FAMA_HOST}, ${subject}, ${STYLE_SUFFIX}` : `${subject}, ${STYLE_SUFFIX}`;
+  if (/sdxl|sd15|lcm/i.test(process.env.IMAGE_MODEL || '')) {
+    return isHost ? `${STYLE_LEAD}, ${MALA_FAMA_HOST_SHORT}, ${subject}` : `${STYLE_LEAD}, ${subject}`;
+  }
+  return isHost ? `${STYLE_LEAD}, ${MALA_FAMA_HOST}, ${subject}, ${STYLE_SUFFIX}` : `${STYLE_LEAD}, ${subject}, ${STYLE_SUFFIX}`;
 }
 
 function run(command, args, options = {}) {

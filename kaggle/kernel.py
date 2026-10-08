@@ -111,7 +111,9 @@ def main():
         "LLM_MODEL": run.get("llmModel", "qwen2.5:14b-instruct"),
         "LLM_JSON_MODE": "openai",
         "IMAGE_BACKEND": "server",
-        "IMAGE_PROMPT_WORDS": "70",
+        "IMAGE_MODEL": run.get("imageModel", "sdxl-lightning"),
+        # SDXL reads ~77 tokens after the style lead; FLUX's T5 encoder reads far more.
+        "IMAGE_PROMPT_WORDS": "35" if "sdxl" in run.get("imageModel", "sdxl") else "90",
         "IMAGE_CONDENSE": "on",
     })
 
@@ -138,7 +140,10 @@ def main():
     else:
         ollama_env["OLLAMA_KEEP_ALIVE"] = "0"  # free GPU memory for images between text calls
     # The image model downloads and loads while Ollama installs and pulls the text model.
-    image_env["IMAGE_MODEL"] = run.get("imageModel", "flux-schnell")
+    hf_token = os.path.join(os.path.dirname(glob.glob("/kaggle/input/**/run.json", recursive=True)[0]), "hf_token")
+    if os.path.exists(hf_token):
+        with open(hf_token) as handle:
+            image_env["HF_TOKEN"] = handle.read().strip()  # read-only token, only for gated FLUX weights
     image_server = subprocess.Popen(f"python3 {APP}/scripts/imagegen_server.py", shell=True, env=image_env, stdout=LOG, stderr=subprocess.STDOUT)
     sh("curl -fsSL https://ollama.com/install.sh | sh")
     subprocess.Popen("ollama serve", shell=True, env=ollama_env, stdout=LOG, stderr=subprocess.STDOUT)
