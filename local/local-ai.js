@@ -62,22 +62,39 @@ async function chat({ system, prompt, schema, maxTokens, temperature }) {
   };
   const format = responseFormat(schema);
   if (format) body.response_format = format;
+  // Stream so the HTTP headers arrive at once: Node's fetch aborts after 300 s without headers,
+  // and a CPU model can take far longer than that to write a 16-scene story.
+  body.stream = true;
   const headers = { 'content-type': 'application/json' };
   if (process.env.LLM_API_KEY) headers.authorization = `Bearer ${process.env.LLM_API_KEY}`;
   const response = await fetch(`${llmBase()}/chat/completions`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(Number(process.env.LLM_TIMEOUT_MS || 900000)),
+    signal: AbortSignal.timeout(Number(process.env.LLM_TIMEOUT_MS || 1800000)),
   });
-  const text = await response.text();
   if (!response.ok) {
+    const text = await response.text();
     const failure = new Error(`llm_http_${response.status}: ${text.slice(0, 300)}`);
     failure.status = response.status;
     throw failure;
   }
-  const data = JSON.parse(text);
-  return data?.choices?.[0]?.message?.content || '';
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let content = '';
+  for await (const chunk of response.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let newline;
+    while ((newline = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') return content;
+      try { content += JSON.parse(data)?.choices?.[0]?.delta?.content || ''; } catch { /* partial line */ }
+    }
+  }
+  return content;
 }
 
 export async function generateJson({ system, prompt, schema, maxTokens, temperature }) {

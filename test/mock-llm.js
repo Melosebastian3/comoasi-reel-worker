@@ -68,6 +68,14 @@ http.createServer((req, res) => {
   req.on('end', () => {
     const request = JSON.parse(body || '{}');
     const content = JSON.stringify(answer(request.response_format?.schema));
+    if (request.stream) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      for (let i = 0; i < content.length; i += 200) {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: content.slice(i, i + 200) } }] })}\n\n`);
+      }
+      res.end('data: [DONE]\n\n');
+      return;
+    }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] }));
   });
