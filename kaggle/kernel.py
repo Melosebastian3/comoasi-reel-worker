@@ -86,7 +86,7 @@ def main():
     log(f"gpus: {gpus}")
     sh("nvidia-smi || true", check=False)
 
-    sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql ffmpeg fonts-dejavu-core xz-utils")
+    sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql ffmpeg fonts-dejavu-core xz-utils zstd")
     sh(f"curl -fsSL https://nodejs.org/dist/{NODE_VERSION}/node-{NODE_VERSION}-linux-x64.tar.xz | tar -xJ -C /opt")
     node_bin = f"/opt/node-{NODE_VERSION}-linux-x64/bin"
     sh("pip install -q edge-tts==7.0.2 diffusers==0.32.2 bitsandbytes==0.45.0 transformers==4.47.1 accelerate==1.2.1 sentencepiece protobuf")
