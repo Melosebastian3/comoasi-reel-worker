@@ -40,9 +40,11 @@ def sh(command, env=None, check=True):
     return result.returncode
 
 
-def wait_http(url, seconds):
+def wait_http(url, seconds, process=None):
     deadline = time.time() + seconds
     while time.time() < deadline:
+        if process is not None and process.poll() is not None:
+            raise SystemExit(f"process serving {url} exited with code {process.returncode}")
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
                 return response.read().decode()
@@ -89,7 +91,11 @@ def main():
     sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql ffmpeg fonts-dejavu-core xz-utils zstd")
     sh(f"curl -fsSL https://nodejs.org/dist/{NODE_VERSION}/node-{NODE_VERSION}-linux-x64.tar.xz | tar -xJ -C /opt")
     node_bin = f"/opt/node-{NODE_VERSION}-linux-x64/bin"
-    sh("pip install -q edge-tts==7.0.2 diffusers==0.32.2 bitsandbytes==0.45.0 transformers==4.47.1 accelerate==1.2.1 sentencepiece protobuf")
+    # Versions that work with the current Kaggle image (Python 3.13, Triton 3: bitsandbytes < 0.45.1 imports the removed triton.ops).
+    sh("pip install -q edge-tts==7.0.2 'diffusers>=0.35,<0.37' 'bitsandbytes>=0.46.1' 'transformers>=4.51,<5' 'accelerate>=1.6' sentencepiece protobuf")
+    sh("python3 -c \"import torch, diffusers, bitsandbytes; from diffusers import FluxPipeline, StableDiffusionXLPipeline; "
+       "print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '-', "
+       "'diffusers', diffusers.__version__, 'bnb', bitsandbytes.__version__)\"")
 
     env = dict(os.environ)
     env["PATH"] = f"{node_bin}:{env['PATH']}"
@@ -121,14 +127,15 @@ def main():
         image_env["CUDA_VISIBLE_DEVICES"] = "1"
     else:
         ollama_env["OLLAMA_KEEP_ALIVE"] = "0"  # free GPU memory for images between text calls
+    # The image model downloads and loads while Ollama installs and pulls the text model.
+    image_env["IMAGE_MODEL"] = run.get("imageModel", "flux-schnell")
+    image_server = subprocess.Popen(f"python3 {APP}/scripts/imagegen_server.py", shell=True, env=image_env, stdout=LOG, stderr=subprocess.STDOUT)
     sh("curl -fsSL https://ollama.com/install.sh | sh")
     subprocess.Popen("ollama serve", shell=True, env=ollama_env, stdout=LOG, stderr=subprocess.STDOUT)
     wait_http("http://127.0.0.1:11434/api/version", 120)
     sh(f"ollama pull {env['LLM_MODEL']}", env=ollama_env)
 
-    image_env["IMAGE_MODEL"] = run.get("imageModel", "flux-schnell")
-    subprocess.Popen(f"python3 {APP}/scripts/imagegen_server.py", shell=True, env=image_env, stdout=LOG, stderr=subprocess.STDOUT)
-    log(f"image server: {wait_http('http://127.0.0.1:7860/', 3600)}")
+    log(f"image server: {wait_http('http://127.0.0.1:7860/', 3600, image_server)}")
 
     args = f"--date {run['date']} --count {run.get('count', 3)}"
     if run.get("slots"):

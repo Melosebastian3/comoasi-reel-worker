@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write  # test runs push the videos to the review-outputs branch (see last step)
 
 jobs:
   produce:
@@ -92,6 +92,7 @@ jobs:
         run: |
           if [ -f kaggle-out/results.json ]; then node local/sync.js import-results kaggle-out/results.json; else echo "no results.json"; fi
           cat kaggle-out/status.json 2>/dev/null || true
+          grep -E '^\[(kernel|imagegen)' kaggle-out/batch.log 2>/dev/null || true
           tail -n 80 kaggle-out/batch.log 2>/dev/null || true
 
       - name: Keep videos as a run artifact (visible to repo readers)
@@ -105,3 +106,19 @@ jobs:
             kaggle-out/status.json
           retention-days: 14
           if-no-files-found: warn
+
+      # TEMPORARY while testing: run artifacts are not reachable from the review environment, so
+      # the videos and log also go to an orphan branch. Removed before the schedule is enabled.
+      - name: Push outputs to the review-outputs branch
+        if: always() && github.event_name == 'push'
+        run: |
+          [ -d kaggle-out ] || exit 0
+          dir="runs/${{ github.run_id }}"
+          git fetch origin review-outputs 2>/dev/null && git worktree add review origin/review-outputs || { git worktree add --detach review && git -C review checkout --orphan review-outputs && git -C review rm -rfq .; }
+          mkdir -p "review/$dir"
+          cp -r kaggle-out/out kaggle-out/batch.log kaggle-out/status.json "review/$dir/" 2>/dev/null || true
+          find "review/$dir" -name '*.mp4' -size +90M -delete
+          cd review
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Outputs of run ${{ github.run_id }}" || exit 0
+          git push origin HEAD:review-outputs
