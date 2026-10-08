@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "d8807c56-2c79-42c6-946f-b00c4091c4f8",
+      "reelId": "c990ddf7-0ee4-4921-a835-530fbad67fa7",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/c990ddf7-0ee4-4921-a835-530fbad67fa7/final.mp4",
+      "coverAssetPath": "covers/c990ddf7-0ee4-4921-a835-530fbad67fa7/mala-fama-devil-v1/cover.png",
+      "title": "Mauro Icardi gana el divorcio a Wanda Nara",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Mauro Icardi gana el divorcio a Wanda Nara y la China Suárez se burla en redes. #ComoAsi #FamososEnPelea #CircusMode #HumorNegro #TrollFamosos\n\n#WandaNara",
+          "hashtags": [
+            "ComoAsi",
+            "FamososEnPelea",
+            "CircusMode",
+            "HumorNegro",
+            "TrollFamosos",
+            "WandaNara"
+          ],
+          "pinnedComment": "¿La China Suárez celebró la derrota de Wanda Nara? ¡Mala Fama te lo explica con picardía! #ComoAsi"
+        },
+        "youtube": {
+          "title": "Mauro Icardi gana el divorcio a Wanda Nara y la China Suárez no puede evitar celebrar",
+          "hashtags": [
+            "ComoAsi",
+            "FamososEnPelea",
+            "CircusMode",
+            "HumorNegro",
+            "TrollFamosos"
+          ],
+          "description": "Mauro Icardi gana el divorcio a Wanda Nara y la China Suárez no puede evitar celebrarlo en redes sociales. #ComoAsi #FamososEnPelea #CircusMode #HumorNegro #TrollFamosos"
+        },
+        "instagram": {
+          "caption": "Mauro Icardi gana el divorcio a Wanda Nara y la China Suárez se burla en redes. #ComoAsi #FamososEnPelea #CircusMode #HumorNegro #TrollFamosos\n\n#WandaNara",
+          "hashtags": [
+            "ComoAsi",
+            "FamososEnPelea",
+            "CircusMode",
+            "HumorNegro",
+            "TrollFamosos",
+            "WandaNara"
+          ],
+          "pinnedComment": "¿La China Suárez celebró la derrota de Wanda Nara? ¡Mala Fama te lo explica con picardía! #ComoAsi"
+        }
+      }
+    }
+  ]
+}
