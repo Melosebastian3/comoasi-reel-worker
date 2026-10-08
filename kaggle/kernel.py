@@ -92,7 +92,7 @@ def main():
     sh(f"curl -fsSL https://nodejs.org/dist/{NODE_VERSION}/node-{NODE_VERSION}-linux-x64.tar.xz | tar -xJ -C /opt")
     node_bin = f"/opt/node-{NODE_VERSION}-linux-x64/bin"
     # Versions that work with the current Kaggle image (Python 3.13, Triton 3: bitsandbytes < 0.45.1 imports the removed triton.ops).
-    sh("pip install -q edge-tts==7.0.2 'diffusers>=0.35,<0.37' 'bitsandbytes>=0.46.1' 'transformers>=4.51,<5' 'accelerate>=1.6' sentencepiece protobuf")
+    sh("pip install -q 'edge-tts>=7.2' 'diffusers>=0.35,<0.37' 'bitsandbytes>=0.46.1' 'transformers>=4.51,<5' 'accelerate>=1.6' sentencepiece protobuf")
     sh("python3 -c \"import torch, diffusers, bitsandbytes; from diffusers import FluxPipeline, StableDiffusionXLPipeline; "
        "print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '-', "
        "'diffusers', diffusers.__version__, 'bnb', bitsandbytes.__version__)\"")
@@ -110,6 +110,10 @@ def main():
         "IMAGE_PROMPT_WORDS": "70",
         "IMAGE_CONDENSE": "on",
     })
+
+    # edge-tts breaks whenever Microsoft rotates its client version; fail now instead of after the images.
+    sh(f"python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media {WORK}/voice-check.mp3")
+    os.remove(f"{WORK}/voice-check.mp3")
 
     # Throwaway database with the real schema and the editorial memory exported by Actions.
     sh("service postgresql start")
@@ -146,7 +150,8 @@ def main():
 
     sh(f"cd {APP} && node local/sync.js export-results {WORK}/results.json --since {started}", env=env)
     out = os.path.join(WORK, "out")
-    for pattern in ("reels/**/final.mp4", "covers/**/cover.png", "manifest-*.json"):
+    # Scene images too, so a run that fails late can still be reviewed.
+    for pattern in ("**/*.mp4", "**/*.png", "**/*.jpg", "**/*.webp", "manifest-*.json"):
         for path in glob.glob(os.path.join(ASSETS, pattern), recursive=True):
             target = os.path.join(out, os.path.relpath(path, ASSETS))
             os.makedirs(os.path.dirname(target), exist_ok=True)
