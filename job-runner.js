@@ -152,7 +152,7 @@ async function loadMemory() {
   return { memory: memory.rows, learning: learning.rows };
 }
 
-async function resolveTopic(payload) {
+async function resolveTopic(payload, avoid = []) {
   const category = String(payload.category || 'actualidad');
   if (payload.topic) {
     const topic = String(payload.topic).trim();
@@ -174,6 +174,8 @@ async function resolveTopic(payload) {
     };
   }
   const context = await loadMemory();
+  // Topics already rejected as duplicates in this job go first so the model sees them.
+  context.memory = [...avoid, ...context.memory];
   return studioCall('/api/engine/topic', { category, ...context }, { timeoutMs: 180000, attempts: 5 });
 }
 
@@ -282,8 +284,25 @@ async function processJob(id) {
     await fs.mkdir(workDir, { recursive: true });
 
     await setJobStage(id, 'topic');
-    const topicData = job.result?.topicData || await resolveTopic(payload);
-    await ensureNoHardDuplicate(topicData, Boolean(payload.force));
+    let topicData = job.result?.topicData;
+    if (!topicData) {
+      // A smaller model sometimes repeats a topic from the memory it was given; ask again
+      // with the rejected topic listed instead of failing the whole slot.
+      const avoid = [];
+      for (let attempt = 1; ; attempt += 1) {
+        topicData = await resolveTopic(payload, avoid);
+        try {
+          await ensureNoHardDuplicate(topicData, Boolean(payload.force));
+          break;
+        } catch (duplicateError) {
+          if (attempt >= 3 || !String(duplicateError.message).startsWith('duplicate_topic_blocked')) throw duplicateError;
+          console.warn(`[como-asi] ${duplicateError.message}; asking for another topic (${attempt}/3)`);
+          avoid.push({ topic: topicData.topic, normalizedTopic: normalizeTopic(topicData.normalizedTopic || topicData.topic), protagonist: topicData.protagonist, category: topicData.category, eventKey: topicData.eventKey });
+        }
+      }
+    } else {
+      await ensureNoHardDuplicate(topicData, Boolean(payload.force));
+    }
     await persistJobResult(id, { topicData });
     job = await getJob(id);
     const reel = await upsertReel(job, topicData);
