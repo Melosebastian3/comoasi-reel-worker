@@ -49,6 +49,8 @@ async function main() {
       [runKey]
     );
     let job = existing.rows[0];
+    // A failed or cancelled attempt starts over with a fresh topic instead of reusing its results.
+    if (['failed', 'cancelled'].includes(job?.status)) job = null;
     if (job?.status === 'completed') {
       console.log(`[batch] ${runKey} already completed, skipping`);
     } else {

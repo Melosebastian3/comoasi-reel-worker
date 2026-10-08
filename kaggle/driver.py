@@ -36,17 +36,23 @@ print(f"[driver] kaggle user {user}", flush=True)
 # 1. Upload the code bundle and context as a private dataset (new version each run).
 with open(os.path.join(args.bundle_dir, "dataset-metadata.json"), "w") as handle:
     json.dump({"title": "comoasi batch input", "id": dataset_ref, "licenses": [{"name": "other"}]}, handle)
+# Try a new version first; the first run creates the dataset instead.
 try:
-    api.dataset_status(dataset_ref)
-    exists = True
-except Exception:
-    exists = False
-if exists:
-    api.dataset_create_version(args.bundle_dir, version_notes=time.strftime("%Y-%m-%d %H:%M"), quiet=True, dir_mode="tar")
-else:
-    api.dataset_create_new(args.bundle_dir, public=False, quiet=True, dir_mode="tar")
+    result = api.dataset_create_version(args.bundle_dir, version_notes=time.strftime("%Y-%m-%d %H:%M"), quiet=True, dir_mode="tar")
+    if getattr(result, "error", None):
+        raise RuntimeError(result.error)
+    print("[driver] dataset version created", flush=True)
+except Exception as error:
+    print(f"[driver] new version failed ({error}); creating dataset", flush=True)
+    result = api.dataset_create_new(args.bundle_dir, public=False, quiet=True, dir_mode="tar")
+    if getattr(result, "error", None):
+        sys.exit(f"dataset create failed: {result.error}")
 for _ in range(60):
-    status = str(api.dataset_status(dataset_ref)).lower()
+    try:
+        status = str(api.dataset_status(dataset_ref)).lower()
+    except Exception as error:  # the status endpoint can 403 for a few seconds after creation
+        status = f"status_error: {error}"
+    print(f"[driver] dataset status: {status}", flush=True)
     if "ready" in status:
         break
     time.sleep(10)
