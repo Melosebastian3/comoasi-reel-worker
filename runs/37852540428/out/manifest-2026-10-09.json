@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "442d2bc9-918f-4e0d-806d-87bba2d743da",
+      "reelId": null,
+      "status": "failed",
+      "error": "topic_not_grounded_in_sources",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    }
+  ]
+}
