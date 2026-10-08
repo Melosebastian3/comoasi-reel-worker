@@ -121,6 +121,8 @@ def main():
 
     # Text model on the first GPU, image model on the second one when there are two.
     ollama_env = dict(env)
+    # Ollama defaults to a 4k window and silently truncates; the topic prompt with headlines is ~17k tokens.
+    ollama_env.update({"OLLAMA_CONTEXT_LENGTH": "24576", "OLLAMA_FLASH_ATTENTION": "1", "OLLAMA_KV_CACHE_TYPE": "q8_0"})
     image_env = dict(env)
     if gpus >= 2:
         ollama_env["CUDA_VISIBLE_DEVICES"] = "0"

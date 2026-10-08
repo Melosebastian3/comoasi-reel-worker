@@ -38,7 +38,8 @@ jobs:
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
       LLM_MODEL: qwen2.5:14b-instruct
-      IMAGE_MODEL: flux-schnell
+      # FLUX.1-schnell is gated on Hugging Face (needs a token); SDXL-Lightning is open.
+      IMAGE_MODEL: sdxl-lightning
     steps:
       - name: Check secrets
         run: |
