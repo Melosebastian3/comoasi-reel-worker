@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { query } from './db.js';
 import { failJob, setJobProgress, setJobStage } from './pipeline.js';
 import { getAssetUrl, studioCall, uploadAsset, writeBase64File } from './engine.js';
@@ -92,6 +93,11 @@ function storyNeedsRegeneration(story) {
 }
 
 async function downloadTo(url, filePath) {
+  if (String(url).startsWith('file:')) {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.copyFile(fileURLToPath(url), filePath);
+    return filePath;
+  }
   const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
   if (!response.ok) throw new Error(`asset_download_failed_${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
@@ -258,6 +264,10 @@ async function obtainSceneImage({ reelId, scene, index, workDir, topic, protagon
   await writeBase64File(localPath, generated.data);
   await uploadAsset(assetPath, localPath, generated.mimeType || 'image/png');
   return { localPath, assetPath, reused: false };
+}
+
+export async function runJobNow(id) {
+  return processJob(String(id));
 }
 
 async function processJob(id) {

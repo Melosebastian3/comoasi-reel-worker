@@ -1,0 +1,97 @@
+# Daily ¿Cómo Así? production on free GitHub-hosted runners with open-source AI.
+# Manual only for now: no schedule and no publishing until the owner enables autopilot.
+name: Produce daily reels
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha de publicación (YYYY-MM-DD, vacío = mañana en Buenos Aires)'
+        required: false
+      count:
+        description: 'Cantidad de videos (1-3)'
+        default: '1'
+      slots:
+        description: 'Franjas (manana,mediodia,noche; vacío = todas)'
+        required: false
+
+concurrency:
+  group: produce-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      ENGINE_MODE: local
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_ENV: production
+      LLM_BASE_URL: http://127.0.0.1:11434/v1
+      LLM_MODEL: qwen2.5:7b-instruct
+      LLM_JSON_MODE: openai
+      IMAGE_BACKEND: diffusers
+      IMAGE_MODEL: SimianLuo/LCM_Dreamshaper_v7
+      LOCAL_ASSET_DIR: ${{ github.workspace }}/out
+      HF_HOME: ${{ github.workspace }}/.cache/huggingface
+      OLLAMA_MODELS: ${{ github.workspace }}/.cache/ollama
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/requirements-ai.txt
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: models-qwen2.5-7b-lcm-dreamshaper-v7
+
+      - name: Install system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          pip install edge-tts==7.0.2
+          pip install -r scripts/requirements-ai.txt
+          npm ci --omit=dev
+
+      - name: Start open-source LLM (Ollama)
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > ollama.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 2; done
+          ollama pull "$LLM_MODEL"
+
+      - name: Check database secret
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::Falta el secreto DATABASE_URL"; exit 1; fi
+
+      - name: Produce reels
+        run: |
+          node batch.js \
+            ${{ inputs.date && format('--date {0}', inputs.date) || '' }} \
+            --count "${{ inputs.count || '1' }}" \
+            ${{ inputs.slots && format('--slots {0}', inputs.slots) || '' }}
+
+      - name: Keep videos as a run artifact (visible to repo readers)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reels-${{ github.run_id }}
+          path: |
+            out/**/final.mp4
+            out/**/cover.png
+            out/manifest-*.json
+          retention-days: 14
+          if-no-files-found: warn
