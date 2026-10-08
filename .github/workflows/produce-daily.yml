@@ -1,10 +1,10 @@
-# Daily ¿Cómo Así? production on free GitHub-hosted runners with open-source AI.
-# Manual only for now: no schedule and no publishing until the owner enables autopilot.
+# Daily ¿Cómo Así? production with open-source models on a free Kaggle GPU.
+# GitHub Actions keeps the database password: it exports the editorial memory, Kaggle generates
+# the videos against a throwaway database, and Actions imports the results. Nothing is published.
 name: Produce daily reels
 
 on:
-  # TEMPORARY: lets the first test run start from this branch (manual dispatch needs the
-  # workflow on main). Produces 1 video against the Neon test branch; publishes nothing.
+  # TEMPORARY: lets test runs start from this branch (manual dispatch needs the workflow on main).
   push:
     branches: [feat/open-source-actions]
   workflow_dispatch:
@@ -29,22 +29,18 @@ permissions:
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 355
     env:
-      ENGINE_MODE: local
       ALLOWED_DB_ENDPOINT: ep-lingering-bar-acgncee8
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_ENV: production
-      LLM_BASE_URL: http://127.0.0.1:11434/v1
-      LLM_MODEL: qwen2.5:7b-instruct
-      LLM_JSON_MODE: openai
-      IMAGE_BACKEND: diffusers
-      IMAGE_MODEL: SimianLuo/LCM_Dreamshaper_v7
-      LOCAL_ASSET_DIR: ${{ github.workspace }}/out
-      HF_HOME: ${{ github.workspace }}/.cache/huggingface
-      OLLAMA_MODELS: ${{ github.workspace }}/.cache/ollama
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      LLM_MODEL: qwen2.5:14b-instruct
+      IMAGE_MODEL: flux-schnell
     steps:
-      - name: Check database secret
+      - name: Check secrets
         run: |
           if [ -z "$DATABASE_URL" ]; then echo "::error::Falta el secreto DATABASE_URL"; exit 1; fi
           # Safety: until autopilot is approved, only the Neon test branch (actions-test) is allowed.
@@ -52,6 +48,11 @@ jobs:
             *"@${ALLOWED_DB_ENDPOINT}."*|*"@${ALLOWED_DB_ENDPOINT}-pooler."*) echo "DB: rama de prueba OK" ;;
             *) echo "::error::DATABASE_URL no apunta a la rama de prueba actions-test de Neon"; exit 1 ;;
           esac
+          if [ -z "$KAGGLE_API_TOKEN" ] && { [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; }; then
+            echo "::error::Falta el secreto KAGGLE_API_TOKEN (o KAGGLE_USERNAME + KAGGLE_KEY)"; exit 1
+          fi
+          # Empty secrets must not shadow the token auth.
+          [ -n "$KAGGLE_USERNAME" ] || echo "KAGGLE_USERNAME=" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
 
@@ -63,36 +64,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: pip
-          cache-dependency-path: scripts/requirements-ai.txt
 
-      - name: Cache models
-        uses: actions/cache@v4
-        with:
-          path: .cache
-          key: models-qwen2.5-7b-lcm-dreamshaper-v7
-
-      - name: Install system tools
+      - name: Install
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
-          pip install edge-tts==7.0.2
-          pip install -r scripts/requirements-ai.txt
           npm ci --omit=dev
+          pip install kaggle==2.2.4
 
-      - name: Start open-source LLM (Ollama)
+      - name: Prepare Kaggle input
         run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          (ollama serve > ollama.log 2>&1 &)
-          for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 2; done
-          ollama pull "$LLM_MODEL"
+          DATE="${{ inputs.date }}"
+          [ -n "$DATE" ] || DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F)
+          echo "RUN_DATE=$DATE" >> "$GITHUB_ENV"
+          mkdir -p bundle
+          node local/sync.js export-context bundle/context.json --date "$DATE"
+          git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
+          printf '{"date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
+            "$DATE" "${{ inputs.count || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
+          cat bundle/run.json
 
-      - name: Produce reels
+      - name: Generate on Kaggle GPU
         run: |
-          node batch.js \
-            ${{ inputs.date && format('--date {0}', inputs.date) || '' }} \
-            --count "${{ inputs.count || '1' }}" \
-            ${{ inputs.slots && format('--slots {0}', inputs.slots) || '' }}
+          if [ -z "$KAGGLE_USERNAME" ]; then unset KAGGLE_USERNAME KAGGLE_KEY; fi
+          python kaggle/driver.py --bundle-dir bundle --out kaggle-out --timeout-minutes 330
+
+      - name: Import results into the database
+        if: always()
+        run: |
+          if [ -f kaggle-out/results.json ]; then node local/sync.js import-results kaggle-out/results.json; else echo "no results.json"; fi
+          cat kaggle-out/status.json 2>/dev/null || true
+          tail -n 80 kaggle-out/batch.log 2>/dev/null || true
 
       - name: Keep videos as a run artifact (visible to repo readers)
         if: always()
@@ -100,8 +100,8 @@ jobs:
         with:
           name: reels-${{ github.run_id }}
           path: |
-            out/**/final.mp4
-            out/**/cover.png
-            out/manifest-*.json
+            kaggle-out/out/**
+            kaggle-out/batch.log
+            kaggle-out/status.json
           retention-days: 14
           if-no-files-found: warn

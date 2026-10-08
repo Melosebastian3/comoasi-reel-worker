@@ -127,13 +127,13 @@ async function condensePrompt(prompt) {
   }
   const schema = { type: 'object', properties: { subject: { type: 'string' } }, required: ['subject'] };
   const result = await generateJson({
-    system: 'You write prompts for a small Stable Diffusion model. Output one English phrase of at most 30 words describing only the visible subject, action, symbolic object and emotion. No style words, no names of brands, no text instructions.',
+    system: `You write prompts for an image model. Output one English description of at most ${Number(process.env.IMAGE_PROMPT_WORDS || 30)} words describing only the visible subjects, their appearance, action, symbolic objects, setting and emotion. Keep celebrity names exactly as given. No style words, no brand logos, no text instructions.`,
     prompt,
     schema,
     maxTokens: 200,
     temperature: 0.2,
   });
-  const subject = String(result.subject || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+  const subject = String(result.subject || '').replace(/\s+/g, ' ').trim().slice(0, 900);
   return isHost ? `${MALA_FAMA_HOST}, ${subject}, ${STYLE_SUFFIX}` : `${subject}, ${STYLE_SUFFIX}`;
 }
 
@@ -160,6 +160,23 @@ export async function generateImage({ prompt }) {
       const palette = ['0x5a0f1e', '0x101010', '0x9cff2e', '0xd61f8c', '0x1f3fbf'];
       const color = palette[imageCounter++ % palette.length];
       await run('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=768x1344`, '-frames:v', '1', out]);
+    } else if (backend === 'server') {
+      // scripts/imagegen_server.py keeps the model loaded on the GPU between images.
+      const condensed = await condensePrompt(prompt);
+      const response = await fetch(`${(process.env.IMAGE_SERVER_URL || 'http://127.0.0.1:7860').replace(/\/$/, '')}/generate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: condensed,
+          negative: NEGATIVE_PROMPT,
+          width: Number(process.env.IMAGE_WIDTH || 768),
+          height: Number(process.env.IMAGE_HEIGHT || 1344),
+          steps: Number(process.env.IMAGE_STEPS || 4),
+        }),
+        signal: AbortSignal.timeout(Number(process.env.IMAGE_TIMEOUT_MS || 600000)),
+      });
+      if (!response.ok) throw new Error(`image_server_${response.status}: ${(await response.text()).slice(0, 300)}`);
+      await fs.writeFile(out, Buffer.from(await response.arrayBuffer()));
     } else {
       const condensed = await condensePrompt(prompt);
       await run(process.env.IMAGE_PYTHON || 'python3', [

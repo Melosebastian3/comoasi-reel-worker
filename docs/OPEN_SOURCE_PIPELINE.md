@@ -39,3 +39,18 @@ ENGINE_MODE=local LLM_BASE_URL=http://127.0.0.1:8089/v1 IMAGE_BACKEND=mock TTS_B
 `.github/workflows/produce-daily.yml` corre solo a mano (`workflow_dispatch`), sin horario
 y sin publicar. Necesita el secreto `DATABASE_URL`. El horario y la publicación se activan
 recién cuando el dueño autorice el autopiloto.
+
+## Generación en Kaggle (placa de video gratis)
+
+El workflow ya no corre los modelos en GitHub. Hace esto:
+
+1. `local/sync.js export-context` saca la memoria editorial de la base real (rama de prueba).
+2. `kaggle/driver.py` sube el código y ese contexto como dataset privado de Kaggle y lanza
+   `kaggle/kernel.py` en una GPU gratis.
+3. El kernel levanta un Postgres descartable, Ollama (`qwen2.5:14b-instruct`) y
+   `scripts/imagegen_server.py` (FLUX.1-schnell en 4 bits, con SDXL-Lightning de respaldo),
+   corre `batch.js` y deja videos, portadas y `results.json`.
+4. Actions descarga todo e importa las filas con `local/sync.js import-results`.
+
+La clave de la base nunca sale de GitHub. Secretos: `DATABASE_URL`, `KAGGLE_API_TOKEN`
+(o `KAGGLE_USERNAME` + `KAGGLE_KEY`). `KAGGLE_ACCELERATOR` es opcional.
