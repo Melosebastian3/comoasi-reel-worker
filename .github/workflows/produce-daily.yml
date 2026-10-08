@@ -3,6 +3,10 @@
 name: Produce daily reels
 
 on:
+  # TEMPORARY: lets the first test run start from this branch (manual dispatch needs the
+  # workflow on main). Produces 1 video against the Neon test branch; publishes nothing.
+  push:
+    branches: [feat/open-source-actions]
   workflow_dispatch:
     inputs:
       date:
