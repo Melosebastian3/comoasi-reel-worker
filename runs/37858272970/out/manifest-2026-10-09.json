@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "c85a9982-f71e-4f3e-811d-b063df1c9627",
+      "reelId": null,
+      "status": "failed",
+      "error": "duplicate_topic_blocked:La China Suárez y Mauro Icardi reavivan el escándalo con una foto de boda",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    }
+  ]
+}
