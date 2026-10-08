@@ -32,6 +32,7 @@ jobs:
     timeout-minutes: 340
     env:
       ENGINE_MODE: local
+      ALLOWED_DB_ENDPOINT: ep-lingering-bar-acgncee8
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_ENV: production
       LLM_BASE_URL: http://127.0.0.1:11434/v1
@@ -46,6 +47,11 @@ jobs:
       - name: Check database secret
         run: |
           if [ -z "$DATABASE_URL" ]; then echo "::error::Falta el secreto DATABASE_URL"; exit 1; fi
+          # Safety: until autopilot is approved, only the Neon test branch (actions-test) is allowed.
+          case "$DATABASE_URL" in
+            *"@${ALLOWED_DB_ENDPOINT}."*|*"@${ALLOWED_DB_ENDPOINT}-pooler."*) echo "DB: rama de prueba OK" ;;
+            *) echo "::error::DATABASE_URL no apunta a la rama de prueba actions-test de Neon"; exit 1 ;;
+          esac
 
       - uses: actions/checkout@v4
 
