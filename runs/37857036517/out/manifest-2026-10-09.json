@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "e4240476-a03c-4285-9511-18745db2d225",
+      "reelId": null,
+      "status": "failed",
+      "error": "duplicate_topic_blocked:Wanda Nara y su bizarro guiño a Mauro Icardi desde las playas de Río de Janeiro",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    }
+  ]
+}
