@@ -23,6 +23,7 @@ WORK = "/kaggle/working"
 APP = "/kaggle/temp/app"
 ASSETS = "/kaggle/temp/assets"
 NODE_VERSION = "v20.18.1"
+EXPECTED_RUN_ID = "__RUN_ID__"  # filled in by driver.py
 LOG = open(os.path.join(WORK, "batch.log"), "a", buffering=1)
 
 
@@ -84,6 +85,9 @@ def main():
     started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     run = find_input()
     log(f"run: {json.dumps(run)}")
+    if not EXPECTED_RUN_ID.startswith("__") and run.get("runId") != EXPECTED_RUN_ID:
+        # Kaggle can mount the previous dataset version for a while after a new one is uploaded.
+        raise SystemExit(f"stale_input: dataset has run {run.get('runId')}, expected {EXPECTED_RUN_ID}")
     gpus = gpu_count()
     log(f"gpus: {gpus}")
     sh("nvidia-smi || true", check=False)
