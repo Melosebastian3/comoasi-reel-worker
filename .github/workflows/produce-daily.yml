@@ -1,13 +1,13 @@
 # Daily ¿Cómo Así? production with open-source models on a free Kaggle GPU.
 # GitHub Actions keeps the database password: it exports the editorial memory, Kaggle generates
-# the videos against a throwaway database, and Actions imports the results. Nothing is published.
+# the videos against a throwaway database, and Actions imports the results. The nightly run then
+# hosts the videos and schedules them on Buffer for 08:00, 13:00 and 20:30 (Buenos Aires).
 name: Produce daily reels
 
 on:
-  # TEMPORARY: lets test runs start from this branch (manual dispatch needs the workflow on main).
-  push:
-    branches: [feat/open-source-actions]
-    paths-ignore: ['publish/**', 'scripts/publish-batch.sh', '.github/workflows/publish-dry-run.yml']
+  # Autopilot (approved by Sebastian 2026-10-09): 00:30 Buenos Aires, same-day posts.
+  schedule:
+    - cron: '30 3 * * *'
   workflow_dispatch:
     inputs:
       date:
@@ -74,6 +74,7 @@ jobs:
       - name: Prepare Kaggle input
         run: |
           DATE="${{ inputs.date }}"
+          if [ -z "$DATE" ] && [ "${{ github.event_name }}" = "schedule" ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
           [ -n "$DATE" ] || DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F)
           echo "RUN_DATE=$DATE" >> "$GITHUB_ENV"
           mkdir -p bundle
@@ -82,7 +83,7 @@ jobs:
           node local/sync.js export-context bundle/context.json --date "$DATE"
           git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
           printf '{"fresh":%s,"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
-            "${{ github.event_name == 'push' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || (github.event_name == 'push' && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
+            "${{ github.event_name == 'push' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || ((github.event_name == 'push' || github.event_name == 'schedule') && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
           cat bundle/run.json
 
       - name: Generate on Kaggle GPU
@@ -98,14 +99,14 @@ jobs:
           grep -E '^\[(kernel|imagegen)' kaggle-out/batch.log 2>/dev/null || true
           tail -n 80 kaggle-out/batch.log 2>/dev/null || true
 
-      # Hosts the videos as release assets and schedules them on Buffer. Dry run unless the repo
-      # variable PUBLISH_ENABLED is "true"; test pushes never post.
+      # Hosts the videos as release assets and schedules them on Buffer. The nightly run posts;
+      # manual runs are a dry run unless the repo variable PUBLISH_ENABLED is "true".
       - name: Host videos and schedule on Buffer
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
           BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-          PUBLISH_ENABLED: ${{ github.event_name != 'push' && vars.PUBLISH_ENABLED || '' }}
+          PUBLISH_ENABLED: ${{ github.event_name == 'schedule' && 'true' || vars.PUBLISH_ENABLED }}
         run: scripts/publish-batch.sh kaggle-out/out "$RUN_DATE"
 
       - name: Keep videos as a run artifact (visible to repo readers)
