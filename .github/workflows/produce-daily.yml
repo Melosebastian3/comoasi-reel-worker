@@ -1,0 +1,138 @@
+# Daily ¿Cómo Así? production with open-source models on a free Kaggle GPU.
+# GitHub Actions keeps the database password: it exports the editorial memory, Kaggle generates
+# the videos against a throwaway database, and Actions imports the results. The nightly run then
+# hosts the videos and schedules them on Buffer for 08:00, 13:00 and 20:30 (Buenos Aires).
+name: Produce daily reels
+
+on:
+  # Autopilot (approved by Sebastian 2026-10-09): 00:30 Buenos Aires, same-day posts.
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha de publicación (YYYY-MM-DD, vacío = mañana en Buenos Aires)'
+        required: false
+      count:
+        description: 'Cantidad de videos (1-3)'
+        default: '1'
+      slots:
+        description: 'Franjas (manana,mediodia,noche; vacío = todas)'
+        required: false
+
+concurrency:
+  group: produce-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # test runs push the videos to the review-outputs branch (see last step)
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      ALLOWED_DB_ENDPOINT: ep-lingering-bar-acgncee8
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_ENV: production
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      LLM_MODEL: qwen2.5:14b-instruct
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Check secrets
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::Falta el secreto DATABASE_URL"; exit 1; fi
+          # Safety: until autopilot is approved, only the Neon test branch (actions-test) is allowed.
+          case "$DATABASE_URL" in
+            *"@${ALLOWED_DB_ENDPOINT}."*|*"@${ALLOWED_DB_ENDPOINT}-pooler."*) echo "DB: rama de prueba OK" ;;
+            *) echo "::error::DATABASE_URL no apunta a la rama de prueba actions-test de Neon"; exit 1 ;;
+          esac
+          if [ -z "$KAGGLE_API_TOKEN" ] && { [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; }; then
+            echo "::error::Falta el secreto KAGGLE_API_TOKEN (o KAGGLE_USERNAME + KAGGLE_KEY)"; exit 1
+          fi
+          # Empty secrets must not shadow the token auth.
+          [ -n "$KAGGLE_USERNAME" ] || echo "KAGGLE_USERNAME=" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: |
+          npm ci --omit=dev
+          pip install kaggle==2.2.4
+
+      - name: Prepare Kaggle input
+        run: |
+          DATE="${{ inputs.date }}"
+          if [ -z "$DATE" ] && [ "${{ github.event_name }}" = "schedule" ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
+          [ -n "$DATE" ] || DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F)
+          echo "RUN_DATE=$DATE" >> "$GITHUB_ENV"
+          mkdir -p bundle
+          # FLUX.1-schnell is gated on Hugging Face and needs a read token; without one, SDXL-Lightning.
+          if [ -n "$HF_TOKEN" ]; then IMAGE_MODEL=flux-schnell; printf '%s' "$HF_TOKEN" > bundle/hf_token; else IMAGE_MODEL=sdxl-lightning; fi
+          node local/sync.js export-context bundle/context.json --date "$DATE"
+          git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
+          printf '{"fresh":%s,"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
+            "${{ github.event_name == 'push' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || ((github.event_name == 'push' || github.event_name == 'schedule') && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
+          cat bundle/run.json
+
+      - name: Generate on Kaggle GPU
+        run: |
+          if [ -z "$KAGGLE_USERNAME" ]; then unset KAGGLE_USERNAME KAGGLE_KEY; fi
+          python kaggle/driver.py --bundle-dir bundle --out kaggle-out --timeout-minutes 330
+
+      - name: Import results into the database
+        if: always()
+        run: |
+          if [ -f kaggle-out/results.json ]; then node local/sync.js import-results kaggle-out/results.json; else echo "no results.json"; fi
+          cat kaggle-out/status.json 2>/dev/null || true
+          grep -E '^\[(kernel|imagegen)' kaggle-out/batch.log 2>/dev/null || true
+          tail -n 80 kaggle-out/batch.log 2>/dev/null || true
+
+      # Hosts the videos as release assets and schedules them on Buffer. The nightly run posts;
+      # manual runs are a dry run unless the repo variable PUBLISH_ENABLED is "true".
+      - name: Host videos and schedule on Buffer
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          PUBLISH_ENABLED: ${{ github.event_name == 'schedule' && 'true' || vars.PUBLISH_ENABLED }}
+        run: scripts/publish-batch.sh kaggle-out/out "$RUN_DATE"
+
+      - name: Keep videos as a run artifact (visible to repo readers)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reels-${{ github.run_id }}
+          path: |
+            kaggle-out/out/**
+            kaggle-out/batch.log
+            kaggle-out/status.json
+          retention-days: 14
+          if-no-files-found: warn
+
+      # TEMPORARY while testing: run artifacts are not reachable from the review environment, so
+      # the videos and log also go to an orphan branch. Removed before the schedule is enabled.
+      - name: Push outputs to the review-outputs branch
+        if: always() && github.event_name == 'push'
+        run: |
+          [ -d kaggle-out ] || exit 0
+          dir="runs/${{ github.run_id }}"
+          git fetch origin review-outputs 2>/dev/null && git worktree add review origin/review-outputs || { git worktree add --detach review && git -C review checkout --orphan review-outputs && git -C review rm -rfq .; }
+          mkdir -p "review/$dir"
+          cp -r kaggle-out/out kaggle-out/batch.log kaggle-out/status.json "review/$dir/" 2>/dev/null || true
+          find "review/$dir" -name '*.mp4' -size +90M -delete
+          cd review
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Outputs of run ${{ github.run_id }}" || exit 0
+          git push origin HEAD:review-outputs

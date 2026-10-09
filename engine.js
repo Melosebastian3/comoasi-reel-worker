@@ -1,13 +1,30 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const studioBase = (process.env.COMOASI_STUDIO_BASE || '').replace(/\/$/, '');
+// ENGINE_MODE=local runs the editorial engine in-process with open-source AI (local/engine-local.js)
+// and stores assets on disk instead of calling the AppDeploy Studio.
+const localMode = process.env.ENGINE_MODE === 'local';
+const assetRoot = path.resolve(process.env.LOCAL_ASSET_DIR || 'data/assets');
+let localEngine;
+
+function localAssetFile(assetPath) {
+  const resolved = path.resolve(assetRoot, String(assetPath || ''));
+  if (!resolved.startsWith(`${assetRoot}${path.sep}`)) throw new Error('invalid_asset_path');
+  return resolved;
+}
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export async function studioCall(route, body, options = {}) {
+  if (localMode) {
+    if (!route.startsWith('/api/engine/')) throw new Error(`studio_route_unavailable_in_local_mode:${route}`);
+    localEngine ||= await import('./local/engine-local.js');
+    return localEngine.engineCall(route, body || {});
+  }
   if (!studioBase) throw new Error('COMOASI_STUDIO_BASE is not configured');
   const configuredAttempts = Number(options.attempts || 5);
   const attempts = route === '/api/metricool/oauth/schedule'
@@ -50,6 +67,12 @@ export async function writeBase64File(filePath, base64) {
 }
 
 export async function uploadAsset(assetPath, filePath, contentType) {
+  if (localMode) {
+    const target = localAssetFile(assetPath);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    if (path.resolve(filePath) !== target) await fs.copyFile(filePath, target);
+    return { path: assetPath, contentType };
+  }
   const stat = await fs.stat(filePath);
   const directLimitBytes = 2400000;
   console.info(`[como-asi] asset upload started: ${assetPath} (${stat.size} bytes raw)`);
@@ -78,6 +101,11 @@ export async function uploadAsset(assetPath, filePath, contentType) {
 }
 
 export async function getAssetUrl(assetPath) {
+  if (localMode) {
+    const publicBase = (process.env.PUBLIC_ASSET_BASE || '').replace(/\/$/, '');
+    if (publicBase) return `${publicBase}/${String(assetPath).split('/').map(encodeURIComponent).join('/')}`;
+    return pathToFileURL(localAssetFile(assetPath)).href;
+  }
   const result = await studioCall('/api/assets/url', { path: assetPath }, { timeoutMs: 60000, attempts: 3 });
   return result.url;
 }

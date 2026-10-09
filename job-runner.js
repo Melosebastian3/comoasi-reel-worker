@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { query } from './db.js';
 import { failJob, setJobProgress, setJobStage } from './pipeline.js';
 import { getAssetUrl, studioCall, uploadAsset, writeBase64File } from './engine.js';
@@ -50,6 +51,22 @@ function storyLanguageStats(story) {
   return { english: englishSignals.length, spanish: spanishSignals.length, sample: narration.slice(0, 220) };
 }
 
+// Tells the next attempt exactly what the validator rejected (local open models need it spelled out).
+function storyRepairNote(story, issue) {
+  const lines = Array.isArray(story?.scenes) ? story.scenes.map(scene => String(scene?.narration || '').trim()) : [];
+  const words = lines.join(' ').split(/\s+/).filter(Boolean).length;
+  const notes = {
+    scene_shape: `devolvió ${lines.length} escenas; deben ser exactamente 16.`,
+    runtime: `las narraciones sumaban ${words} palabras; deben sumar entre 150 y 240.`,
+    weak_hook: 'la escena 1 era demasiado larga; debe tener menos de 20 palabras.',
+    open_ending: 'la escena 16 terminaba en pregunta o era muy corta; debe cerrar con una afirmación de al menos 5 palabras.',
+    too_many_questions: `había ${(lines.join(' ').match(/\?/g) || []).length} preguntas; como máximo 2.`,
+    empty_scene: 'alguna escena no tenía narración.',
+    language: 'había demasiadas palabras en inglés.',
+  };
+  return notes[issue] || `fue rechazado por: ${issue}.`;
+}
+
 function storyValidationIssue(story) {
   if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 16) return 'scene_shape';
   if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '')))) return 'delivery';
@@ -92,6 +109,11 @@ function storyNeedsRegeneration(story) {
 }
 
 async function downloadTo(url, filePath) {
+  if (String(url).startsWith('file:')) {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.copyFile(fileURLToPath(url), filePath);
+    return filePath;
+  }
   const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
   if (!response.ok) throw new Error(`asset_download_failed_${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
@@ -146,7 +168,7 @@ async function loadMemory() {
   return { memory: memory.rows, learning: learning.rows };
 }
 
-async function resolveTopic(payload) {
+async function resolveTopic(payload, avoid = []) {
   const category = String(payload.category || 'actualidad');
   if (payload.topic) {
     const topic = String(payload.topic).trim();
@@ -168,6 +190,9 @@ async function resolveTopic(payload) {
     };
   }
   const context = await loadMemory();
+  // Topics already rejected as duplicates in this job go first so the model sees them.
+  context.memory = [...avoid, ...context.memory];
+  context.avoid = avoid;
   return studioCall('/api/engine/topic', { category, ...context }, { timeoutMs: 180000, attempts: 5 });
 }
 
@@ -260,6 +285,10 @@ async function obtainSceneImage({ reelId, scene, index, workDir, topic, protagon
   return { localPath, assetPath, reused: false };
 }
 
+export async function runJobNow(id) {
+  return processJob(String(id));
+}
+
 async function processJob(id) {
   if (running.has(id) || running.size >= 1) return;
   running.add(id);
@@ -272,8 +301,41 @@ async function processJob(id) {
     await fs.mkdir(workDir, { recursive: true });
 
     await setJobStage(id, 'topic');
-    const topicData = job.result?.topicData || await resolveTopic(payload);
-    await ensureNoHardDuplicate(topicData, Boolean(payload.force));
+    let topicData = job.result?.topicData;
+    if (!topicData) {
+      // A smaller model sometimes repeats a topic from the memory it was given; ask again
+      // with the rejected topic listed instead of failing the whole slot.
+      // Stories already made in the last two days are left out from the start, so the three
+      // daily slots do not keep landing on the same dominant headline.
+      const recent = await query(
+        `select topic, normalized_topic as "normalizedTopic", protagonist, category, event_key as "eventKey" from comoasi.editorial_memory
+         where status in ('generated','published') and created_at > now() - interval '48 hours' order by created_at desc limit 12`
+      );
+      const avoid = [...recent.rows];
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          topicData = await resolveTopic(payload, avoid);
+        } catch (topicError) {
+          // The local model sometimes picks a story it cannot tie to a headline; just ask again.
+          if (attempt >= 3 || !/topic_not_grounded_in_sources|recognizable_protagonist_unavailable/.test(String(topicError.message))) throw topicError;
+          console.warn(`[como-asi] ${topicError.message}; asking for another topic (${attempt}/3)`);
+          // An unsupported story is avoided on the next try, like a duplicate.
+          const rejected = String(topicError.message).split('|')[1];
+          if (rejected) { try { avoid.push(JSON.parse(rejected)); } catch {} }
+          continue;
+        }
+        try {
+          await ensureNoHardDuplicate(topicData, Boolean(payload.force));
+          break;
+        } catch (duplicateError) {
+          if (attempt >= 4 || !String(duplicateError.message).startsWith('duplicate_topic_blocked')) throw duplicateError;
+          console.warn(`[como-asi] ${duplicateError.message}; asking for another topic (${attempt}/4)`);
+          avoid.push({ topic: topicData.topic, normalizedTopic: normalizeTopic(topicData.normalizedTopic || topicData.topic), protagonist: topicData.protagonist, category: topicData.category, eventKey: topicData.eventKey });
+        }
+      }
+    } else {
+      await ensureNoHardDuplicate(topicData, Boolean(payload.force));
+    }
     await persistJobResult(id, { topicData });
     job = await getJob(id);
     const reel = await upsertReel(job, topicData);
@@ -295,7 +357,8 @@ async function processJob(id) {
     let story = savedStory && !storyNeedsRegeneration(savedStory) ? savedStory : null;
     const reuseSavedStory = Boolean(story);
     if (!story) {
-      for (let storyAttempt = 1; storyAttempt <= 3; storyAttempt += 1) {
+      let repairNote = '';
+      for (let storyAttempt = 1; storyAttempt <= 4; storyAttempt += 1) {
         const candidate = normalizeStory(await studioCall('/api/engine/story', {
           topic: topicData.topic,
           title: topicData.title,
@@ -339,6 +402,7 @@ async function processJob(id) {
           hostName: 'Mala Fama',
           tone: 'sátira negra panlatina, masculina, elegante, siniestra y despiadadamente venenosa',
           strictSpanish: storyAttempt > 1,
+          repairNote,
         }, { timeoutMs: 240000, attempts: 5 }));
         const issue = storyValidationIssue(candidate);
         if (!issue) {
@@ -347,9 +411,11 @@ async function processJob(id) {
         }
         const stats = storyLanguageStats(candidate);
         console.warn(`[como-asi] story validation rejected attempt ${storyAttempt}`, { issue, english: stats.english, spanish: stats.spanish, sample: stats.sample });
+        repairNote = storyRepairNote(candidate, issue);
+        console.warn(`[como-asi] story repair note: ${repairNote}`);
       }
     }
-    if (!story) throw new Error('story_validation_failed_after_3_attempts');
+    if (!story) throw new Error('story_validation_failed_after_4_attempts');
     await persistJobResult(id, { story });
 
     const existingReel = await query('select storyboard from comoasi.reels where id=$1', [reel.id]);

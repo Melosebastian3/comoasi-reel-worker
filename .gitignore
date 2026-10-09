@@ -1,0 +1,5 @@
+.cache/
+data/
+node_modules/
+out/
+__pycache__/

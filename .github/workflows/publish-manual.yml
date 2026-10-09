@@ -1,0 +1,52 @@
+# Hosts and schedules a hand-approved batch kept on the publish-media branch
+# (manual/<DATE>/manifest-<DATE>.json + reels/<id>/final.mp4). Manual only.
+# Started by pushing publish/approved/request.json ({"date": "...", "live": true|false}) or by hand.
+# live=true posts for real; anything else is a dry run.
+name: Publish approved batch
+
+on:
+  push:
+    branches: [feat/open-source-actions]
+    paths: ['publish/approved/request.json']
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha de la carpeta manual/<fecha> en publish-media'
+        required: false
+      live:
+        description: 'Publicar de verdad (true) o solo probar (false)'
+        required: true
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-approved
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Read the request
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then DATE="${{ inputs.date }}"; LIVE="${{ inputs.live }}"
+          else DATE=$(jq -r .date publish/approved/request.json); LIVE=$(jq -r .live publish/approved/request.json); fi
+          echo "DATE=$DATE" >> "$GITHUB_ENV"
+          [ "$LIVE" = "true" ] && echo "PUBLISH_ENABLED=true" >> "$GITHUB_ENV" || true
+          echo "date $DATE live $LIVE"
+      - name: Take the approved batch
+        run: |
+          git fetch --depth=1 origin publish-media
+          git worktree add media FETCH_HEAD
+          test -f "media/manual/$DATE/manifest-$DATE.json"
+      - name: Host videos and schedule on Buffer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+        run: scripts/publish-batch.sh "media/manual/$DATE" "$DATE"

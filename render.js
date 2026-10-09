@@ -74,6 +74,14 @@ async function synthesizeEdgeTts(text, voice, style, inputPath, outputPath) {
     '--file', inputPath,
     '--write-media', outputPath,
   ];
+  if (process.env.TTS_BACKEND === 'espeak') {
+    // Offline test voice only (no network); production keeps edge-tts.
+    const wavPath = `${outputPath}.wav`;
+    await run('espeak-ng', ['-v', 'es-419', '-s', String(150 + Number(style.rate || 0)), '-f', inputPath, '-w', wavPath], { timeoutMs: 90000 });
+    await run('ffmpeg', ['-v', 'error', '-y', '-i', wavPath, '-codec:a', 'libmp3lame', '-b:a', '128k', outputPath], { timeoutMs: 90000 });
+    await fs.rm(wavPath, { force: true }).catch(() => {});
+    return;
+  }
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     console.log(`[como-asi] voice block started (attempt ${attempt}, ${text.length} chars)`);
