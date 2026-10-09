@@ -97,7 +97,57 @@ async function chat({ system, prompt, schema, maxTokens, temperature }) {
   return content;
 }
 
-export async function generateJson({ system, prompt, schema, maxTokens, temperature }) {
+// Groq (Sebastian 2026-10-09): the free tier runs open models far larger than what fits next to FLUX
+// on Kaggle, which matters for jokes. Free limits are per minute and per day, so a 429 waits for the
+// window it names, and anything Groq cannot serve falls back to the local model.
+const groqModel = () => process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function groqChat({ system, prompt, schema, maxTokens, temperature }) {
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: groqModel(),
+        messages: [
+          { role: 'system', content: `${system || ''}\n\nResponde únicamente con un objeto JSON válido que cumpla este JSON Schema:\n${JSON.stringify(schema)}`.trim() },
+          { role: 'user', content: prompt },
+        ],
+        max_completion_tokens: Math.min(Number(maxTokens || 4000), 6000),
+        temperature: temperature ?? 0.7,
+        reasoning_effort: 'low',
+        response_format: { type: 'json_object' },
+      }),
+      signal: AbortSignal.timeout(180000),
+    });
+    if (response.status === 429) {
+      const wait = Math.min(90, Math.max(5, Number.parseFloat(response.headers.get('retry-after') || '20')));
+      console.warn(`[como-asi] groq rate limited; waiting ${wait}s (${attempt}/6)`);
+      await sleep(wait * 1000);
+      continue;
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(`groq_http_${response.status}: ${JSON.stringify(payload.error || payload).slice(0, 300)}`);
+    return payload?.choices?.[0]?.message?.content || '';
+  }
+  throw new Error('groq_rate_limited');
+}
+
+export async function generateJson({ system, prompt, schema, maxTokens, temperature, localOnly = false }) {
+  if (process.env.GROQ_API_KEY && !localOnly) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const value = extractJson(await groqChat({ system, prompt, schema, maxTokens, temperature }));
+        const missing = missingRequired(schema, value);
+        if (missing) throw new Error(`llm_missing_field:${missing}`);
+        return value;
+      } catch (groqError) {
+        console.warn(`[como-asi] groq attempt ${attempt}/2 failed: ${groqError.message}`);
+      }
+    }
+    console.warn('[como-asi] falling back to the local model');
+  }
   const attempts = Number(process.env.LLM_JSON_ATTEMPTS || 3);
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -135,6 +185,7 @@ async function condensePrompt(prompt) {
     schema,
     maxTokens: 200,
     temperature: 0.2,
+    localOnly: true,  // 48 short calls a day would eat the Groq budget for little gain
   });
   const subject = String(result.subject || '').replace(/\s+/g, ' ').trim().slice(0, 900);
   if (/sdxl|sd15|lcm/i.test(process.env.IMAGE_MODEL || '')) {

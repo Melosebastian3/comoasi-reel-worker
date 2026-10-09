@@ -353,7 +353,7 @@ async function scrapeTrendSources(signals) {
   const selected = signals.slice(0, 6);
   const scraped = await Promise.allSettled(selected.map(async (signal) => {
     const page = await ai.scrape({ url: signal.url });
-    return { ...signal, text: page.status < 400 ? page.text.slice(0, 4500) : "" };
+    return { ...signal, text: page.status < 400 ? page.text.slice(0, Number(process.env.SOURCE_TEXT_CHARS || 4500)) : "" };
   }));
   return scraped.flatMap((item) => item.status === "fulfilled" ? [item.value] : []);
 }
@@ -379,7 +379,7 @@ const routes = {
     const explicitMarket = asString(b.market).toLowerCase();
     const prefixedMarket = asString(marketCategoryMatch?.[1]).toLowerCase();
     const market = ["argentina", "random", "internacional"].includes(explicitMarket) ? explicitMarket : ["argentina", "internacional"].includes(prefixedMarket) ? prefixedMarket : "random";
-    const memory = asArray(b.memory).slice(0, 60);
+    const memory = asArray(b.memory).slice(0, Number(process.env.TOPIC_MEMORY_ITEMS || 60));
     const learning = asArray(b.learning).slice(0, 40);
     const liveSignals = await fetchCurrentSignals(category, "", market);
     if (liveSignals.length === 0) return error("current_sources_unavailable", 503);

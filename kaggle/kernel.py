@@ -145,6 +145,15 @@ def main():
     if os.path.exists(hf_token):
         with open(hf_token) as handle:
             image_env["HF_TOKEN"] = handle.read().strip()  # read-only token, only for gated FLUX weights
+    # Optional Groq key for the text model (free tier); without it everything runs on Ollama.
+    groq_key = os.path.join(os.path.dirname(hf_token), "groq_key")
+    if os.path.exists(groq_key):
+        with open(groq_key) as handle:
+            env["GROQ_API_KEY"] = handle.read().strip()
+        # Free-tier limits are per minute: keep prompts lean.
+        env.setdefault("SOURCE_TEXT_CHARS", "1800")
+        env.setdefault("TOPIC_MEMORY_ITEMS", "25")
+        log("text model: groq")
     image_server = subprocess.Popen(f"python3 {APP}/scripts/imagegen_server.py", shell=True, env=image_env, stdout=LOG, stderr=subprocess.STDOUT)
     sh("curl -fsSL https://ollama.com/install.sh | sh")
     subprocess.Popen("ollama serve", shell=True, env=ollama_env, stdout=LOG, stderr=subprocess.STDOUT)
