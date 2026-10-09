@@ -1,0 +1,44 @@
+# Checks the publishing path without spending GPU: takes a finished test run from the
+# review-outputs branch, hosts its videos as release assets and asks Buffer what it would
+# schedule. Never posts (PUBLISH_ENABLED is not passed).
+name: Publish dry run
+
+on:
+  push:
+    branches: [feat/open-source-actions]
+    paths: ['publish/**', 'scripts/publish-batch.sh', '.github/workflows/publish-dry-run.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run de review-outputs (vacío = el último)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Take the latest finished test run
+        run: |
+          git fetch --depth=1 origin review-outputs
+          git worktree add review FETCH_HEAD
+          RUN="${{ inputs.run_id }}"
+          if [ -z "$RUN" ]; then
+            RUN=$(cd review/runs && for d in */; do [ -n "$(ls "$d"out/manifest-*.json 2>/dev/null)" ] && ls "$d"out/reels/*/final.mp4 >/dev/null 2>&1 && echo "${d%/}"; done | sort -n | tail -1)
+          fi
+          MANIFEST=$(ls review/runs/$RUN/out/manifest-*.json | head -1)
+          DATE=$(basename "$MANIFEST" .json | sed 's/manifest-//')
+          echo "run $RUN date $DATE"
+          echo "OUT=review/runs/$RUN/out" >> "$GITHUB_ENV"
+          echo "DATE=$DATE" >> "$GITHUB_ENV"
+      - name: Host videos and ask Buffer (dry run)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+        run: scripts/publish-batch.sh "$OUT" "$DATE"

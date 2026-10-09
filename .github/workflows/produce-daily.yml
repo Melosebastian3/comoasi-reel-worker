@@ -97,6 +97,16 @@ jobs:
           grep -E '^\[(kernel|imagegen)' kaggle-out/batch.log 2>/dev/null || true
           tail -n 80 kaggle-out/batch.log 2>/dev/null || true
 
+      # Hosts the videos as release assets and schedules them on Buffer. Dry run unless the repo
+      # variable PUBLISH_ENABLED is "true"; test pushes never post.
+      - name: Host videos and schedule on Buffer
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          PUBLISH_ENABLED: ${{ github.event_name != 'push' && vars.PUBLISH_ENABLED || '' }}
+        run: scripts/publish-batch.sh kaggle-out/out "$RUN_DATE"
+
       - name: Keep videos as a run artifact (visible to repo readers)
         if: always()
         uses: actions/upload-artifact@v4
