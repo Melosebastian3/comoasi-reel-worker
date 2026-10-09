@@ -1,0 +1,19 @@
+# One-off: checks which news feeds answer from a GitHub runner.
+name: Feed probe
+on:
+  push:
+    paths: ['ops/feeds.txt']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          while IFS='|' read -r NAME URL; do
+            curl -sL -m 15 -A 'Mozilla/5.0 (compatible; ComoAsiBot/1.0)' -o /tmp/f.xml -w '%{http_code}' "$URL" > /tmp/code || true
+            ITEMS=$(grep -o -i '<item\b\|<entry\b' /tmp/f.xml 2>/dev/null | wc -l)
+            FIRST=$(grep -o -i -m1 '<item[^>]*>.\{0,600\}' /tmp/f.xml | grep -o -i '<title>[^<]*' | head -1 | cut -c8-90)
+            echo "PROBE|$NAME|$(cat /tmp/code)|$ITEMS|$FIRST"
+          done < ops/feeds.txt

@@ -1,0 +1,37 @@
+Clarin Espectaculos|https://www.clarin.com/rss/espectaculos/
+La Nacion Espectaculos|https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/espectaculos/?outputType=xml
+TN Show|https://tn.com.ar/arc/outboundfeeds/rss/category/show/?outputType=xml
+Infobae Teleshow|https://www.infobae.com/arc/outboundfeeds/rss/category/teleshow/?outputType=xml
+Paparazzi|https://www.paparazzi.com.ar/feed/
+Ciudad Magazine|https://www.ciudad.com.ar/rss
+Ciudad Magazine feed|https://www.ciudad.com.ar/feed
+Exitoina|https://www.exitoina.com/rss
+Pronto|https://www.pronto.com.ar/rss
+Perfil Espectaculos|https://www.perfil.com/feed/espectaculos
+Caras|https://caras.perfil.com/feed
+Minuto Uno Show|https://www.minutouno.com/rss/show.xml
+Pagina12 Espectaculos|https://www.pagina12.com.ar/rss/secciones/espectaculos/notas
+Big Bang News|https://www.bigbangnews.com/rss
+El Destape Espectaculos|https://www.eldestapeweb.com/rss/espectaculos
+Ambito|https://www.ambito.com/rss/pages/espectaculos.xml
+Primicias Ya|https://www.primiciasya.com/rss/pages/home.xml
+Filo News|https://www.filo.news/rss
+Google Trends AR|https://trends.google.com/trending/rss?geo=AR
+Google Trends US|https://trends.google.com/trending/rss?geo=US
+Google Trends MX|https://trends.google.com/trending/rss?geo=MX
+Page Six|https://pagesix.com/feed/
+E! Online|https://www.eonline.com/syndication/feeds/rssfeeds/topstories.xml
+People|https://people.com/feeds/all/
+Just Jared|https://www.justjared.com/feed/
+Billboard|https://www.billboard.com/feed/
+TMZ|https://www.tmz.com/rss.xml
+Variety|https://variety.com/feed/
+Hola Famosos|https://www.hola.com/feeds/rss/any/famosos/any/50.xml
+People en Espanol|https://peopleenespanol.com/feed/
+Infobae Espectaculos AMERICA|https://www.infobae.com/arc/outboundfeeds/rss/category/america/entretenimiento/?outputType=xml
+El Universal Espectaculos|https://www.eluniversal.com.mx/rss/espectaculos.xml
+Milenio Espectaculos|https://www.milenio.com/rss/espectaculos
+Univision Famosos|https://www.univision.com/feeds/famosos
+Reddit popculturechat|https://www.reddit.com/r/popculturechat/hot/.rss
+Reddit Fauxmoi|https://www.reddit.com/r/Fauxmoi/hot/.rss
+Reddit Argentina|https://www.reddit.com/r/argentina/hot/.rss
