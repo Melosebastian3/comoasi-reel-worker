@@ -319,6 +319,9 @@ async function processJob(id) {
           // The local model sometimes picks a story it cannot tie to a headline; just ask again.
           if (attempt >= 3 || !/topic_not_grounded_in_sources|recognizable_protagonist_unavailable/.test(String(topicError.message))) throw topicError;
           console.warn(`[como-asi] ${topicError.message}; asking for another topic (${attempt}/3)`);
+          // An unsupported story is avoided on the next try, like a duplicate.
+          const rejected = String(topicError.message).split('|')[1];
+          if (rejected) { try { avoid.push(JSON.parse(rejected)); } catch {} }
           continue;
         }
         try {

@@ -36,9 +36,11 @@ ENGINE_MODE=local LLM_BASE_URL=http://127.0.0.1:8089/v1 IMAGE_BACKEND=mock TTS_B
 
 ## GitHub Actions
 
-`.github/workflows/produce-daily.yml` corre solo a mano (`workflow_dispatch`), sin horario
-y sin publicar. Necesita el secreto `DATABASE_URL`. El horario y la publicación se activan
-recién cuando el dueño autorice el autopiloto.
+`.github/workflows/produce-daily.yml` corre todas las noches a las 00:30 de Buenos Aires
+(autorizado por Sebastian el 2026-10-09): genera los 3 videos del día, los aloja como release
+`media-<fecha>` y los programa en Buffer para 08:00, 13:00 y 20:30. A mano (`workflow_dispatch`)
+no publica salvo que la variable del repo `PUBLISH_ENABLED` sea `true`. Necesita los secretos
+`DATABASE_URL`, `KAGGLE_API_TOKEN`, `HF_TOKEN` y `BUFFER_API_KEY`.
 
 ## Generación en Kaggle (placa de video gratis)
 

@@ -380,6 +380,20 @@ CORRECCI\xD3N OBLIGATORIA: la elecci\xF3n anterior no aparec\xEDa en los titular
     }
     if (recognitionIsWeak(selected)) return error("recognizable_protagonist_unavailable", 503);
     if (!isGrounded(selected)) return error("topic_not_grounded_in_sources", 503);
+    // The name check above lets a real name carry an invented conflict (Gunna launching a label
+    // became a "public war with an ex-partner"). A separate pass checks the claim itself.
+    const citedSignals = asArray(selected.sourceIndexes).map((value) => availableSignals[Math.trunc(Number(value))]).filter(Boolean);
+    const claimCheck = await generateStructured("Eres un verificador de datos estricto. Respond\xE9s solo con lo que dicen los textos dados.", `TEMA PROPUESTO: ${JSON.stringify({ topic: selected.topic, title: selected.title, angle: selected.angle })}
+FUENTES CITADAS: ${JSON.stringify(citedSignals.map((signal) => ({ title: signal.title, text: asString(signal.text).slice(0, 1200) })))}
+\xBFLas fuentes dicen expl\xEDcitamente que ocurri\xF3 el conflicto o hecho central del tema (no solo que aparece la persona)? Si el tema agrega una pelea, ruptura, acusaci\xF3n, socio, pareja o consecuencia que las fuentes no mencionan, respond\xE9 supported=false.`, {
+      type: "object",
+      properties: { supported: { type: "boolean" }, reason: { type: "string" } },
+      required: ["supported", "reason"]
+    }, 400).catch(() => ({ supported: false, reason: "claim_check_failed" }));
+    if (claimCheck.supported !== true) {
+      console.warn(`[como-asi] topic claim not supported by sources: ${asString(selected.topic)} (${asString(claimCheck.reason)})`);
+      return error(`topic_not_grounded_in_sources|${JSON.stringify({ topic: asString(selected.topic), protagonist: asString(selected.protagonist) })}`, 503);
+    }
     const protagonist = asString(selected.protagonist);
     const selectedTitle = asString(selected.title);
     if (!selectedTitle.toLocaleLowerCase("es").includes(protagonist.toLocaleLowerCase("es"))) selected.title = `${protagonist}: ${selectedTitle || asString(selected.topic)}`;
