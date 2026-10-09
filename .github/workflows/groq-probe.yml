@@ -1,0 +1,20 @@
+name: Groq probe
+on:
+  push:
+    branches: [ops/groq-probe]
+    paths: ['ops-groq-probe.mjs']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LLM_BASE_URL: http://127.0.0.1:9/v1
+          LLM_JSON_ATTEMPTS: '1'
+        run: test -n "$GROQ_API_KEY" && echo "key present" && node ops-groq-probe.mjs
