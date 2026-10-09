@@ -21,6 +21,10 @@ node -e '
   [ -f "$SRC" ] || { echo "missing $SRC"; continue; }
   cp "$SRC" "/tmp/$SLOT-$REEL.mp4"
   gh release upload "$TAG" "/tmp/$SLOT-$REEL.mp4" --repo "$REPO" --clobber
+  # Buffer fetches the video with no GitHub credentials, so check it the same way.
+  URL="https://github.com/$REPO/releases/download/$TAG/$SLOT-$REEL.mp4"
+  CODE=$(curl -s -o /dev/null -L -r 0-1023 -w '%{http_code}' "$URL" || true)
+  echo "public check $SLOT: HTTP $CODE"
 done
 
 if [ -z "${BUFFER_API_KEY:-}" ]; then echo "BUFFER_API_KEY not set; videos hosted, nothing scheduled"; exit 0; fi
