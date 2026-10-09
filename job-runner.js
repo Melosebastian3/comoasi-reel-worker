@@ -291,7 +291,14 @@ async function processJob(id) {
       // with the rejected topic listed instead of failing the whole slot.
       const avoid = [];
       for (let attempt = 1; ; attempt += 1) {
-        topicData = await resolveTopic(payload, avoid);
+        try {
+          topicData = await resolveTopic(payload, avoid);
+        } catch (topicError) {
+          // The local model sometimes picks a story it cannot tie to a headline; just ask again.
+          if (attempt >= 3 || !/topic_not_grounded_in_sources|recognizable_protagonist_unavailable/.test(String(topicError.message))) throw topicError;
+          console.warn(`[como-asi] ${topicError.message}; asking for another topic (${attempt}/3)`);
+          continue;
+        }
         try {
           await ensureNoHardDuplicate(topicData, Boolean(payload.force));
           break;
