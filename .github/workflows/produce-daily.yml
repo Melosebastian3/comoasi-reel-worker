@@ -7,6 +7,7 @@ on:
   # TEMPORARY: lets test runs start from this branch (manual dispatch needs the workflow on main).
   push:
     branches: [feat/open-source-actions]
+    paths-ignore: ['publish/**', 'scripts/publish-batch.sh', '.github/workflows/publish-dry-run.yml']
   workflow_dispatch:
     inputs:
       date:
