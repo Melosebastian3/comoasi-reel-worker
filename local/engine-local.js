@@ -322,7 +322,9 @@ const routes = {
     const avoidTokens = new Set(avoid.flatMap((item) => plainTokens(item?.protagonist)));
     const freshSignals = liveSignals.filter((signal) => !plainTokens(`${signal.title} ${signal.text || ""}`).some((token) => avoidTokens.has(token)));
     const availableSignals = (freshSignals.length >= 5 ? freshSignals : liveSignals).slice(0, 28);
-    const avoidInstruction = avoid.length ? `\nPROHIBIDO repetir estos temas ya hechos ni a sus protagonistas: ${JSON.stringify(avoid.map((item) => ({ topic: item?.topic, protagonist: item?.protagonist })))}` : "";
+    // Sebastian (2026-10-09): dark humor can be strong, but abuse is off limits.
+    const hardLimits = "\nL\xCDMITES DUROS: el humor negro puede ser fuerte, pero nunca elijas historias de abuso sexual, violencia de g\xE9nero, maltrato, menores en riesgo, muertes recientes ni enfermedades graves como tema.";
+    const avoidInstruction = hardLimits + (avoid.length ? `\nPROHIBIDO repetir estos temas ya hechos ni a sus protagonistas: ${JSON.stringify(avoid.map((item) => ({ topic: item?.topic, protagonist: item?.protagonist })))}` : "");
     const prompt = `Fecha/hora actual UTC: ${currentDate}. Categor\xEDa solicitada: ${category}. Mercado editorial: ${market}. ${marketInstruction} ${viralCalibration}
 SE\xD1ALES RECIENTES REALES (\xEDndice \u2192 titular/fuente/fecha): ${JSON.stringify(availableSignals.map((signal, index) => ({ index, ...signal })))}
 Memoria editorial exclusiva de \xBFC\xF3mo As\xED? (evitar repeticiones): ${JSON.stringify(memory)}
