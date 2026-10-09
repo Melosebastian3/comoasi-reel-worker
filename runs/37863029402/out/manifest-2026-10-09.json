@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "a1c9d517-a1ef-4697-a80d-5b05eab690dd",
+      "reelId": "d7923648-aac9-4b32-8e09-d6a091fea8f5",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/d7923648-aac9-4b32-8e09-d6a091fea8f5/final.mp4",
+      "coverAssetPath": "covers/d7923648-aac9-4b32-8e09-d6a091fea8f5/mala-fama-devil-v1/cover.png",
+      "title": "China Suárez y Mauro Icardi: La nueva foto que reaviva el 'Wandagate'",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "China Suárez con anillo y Wanda Nara con Mauro Icardi: ¿Es el final o el comienzo de otra historia? #ComoAsi #Wandagate #Famosos #HumorNegro #Bizarro\n\n#Escandalo",
+          "hashtags": [
+            "Wandagate",
+            "Famosos",
+            "HumorNegro",
+            "Bizarro",
+            "ComoAsi",
+            "Escandalo"
+          ],
+          "pinnedComment": "¿Qué opinas de la nueva foto que reaviva el 'Wandagate'? #ComoAsi"
+        },
+        "youtube": {
+          "title": "Wanda Nara y Mauro Icardi: La nueva foto que reaviva el 'Wandagate'",
+          "hashtags": [
+            "Wandagate",
+            "Famosos",
+            "HumorNegro",
+            "Bizarro",
+            "ComoAsi"
+          ],
+          "description": "China Suárez y Mauro Icardi: La nueva foto que reaviva el 'Wandagate'. Wanda Nara y Mauro Icardi en una guerra de declaraciones, ahora una foto de boda sugiere un regreso que reaviva el escándalo. #ComoAsi\n\n#Wandagate #Famosos #HumorNegro #Bizarro"
+        },
+        "instagram": {
+          "caption": "Wanda Nara y Mauro Icardi, ¿la reconciliación que todos esperaban? La nueva foto sugiere un regreso que reaviva el 'Wandagate'. #ComoAsi #Wandagate #Famosos #Bizarro #HumorNegro\n\n#Reconciliacion",
+          "hashtags": [
+            "Wandagate",
+            "Famosos",
+            "Bizarro",
+            "HumorNegro",
+            "ComoAsi",
+            "Reconciliacion"
+          ],
+          "pinnedComment": "¿Es broma o realidad? La foto de Wanda y Mauro reaviva el escándalo. #ComoAsi"
+        }
+      }
+    }
+  ]
+}
