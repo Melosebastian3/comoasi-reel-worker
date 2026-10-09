@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "06c1b108-265d-481d-a65c-d49ae8dd878a",
+      "reelId": "6b9908f0-af2a-49f3-b0f2-5c13a2230802",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/6b9908f0-af2a-49f3-b0f2-5c13a2230802/final.mp4",
+      "coverAssetPath": "covers/6b9908f0-af2a-49f3-b0f2-5c13a2230802/mala-fama-devil-v1/cover.png",
+      "title": "Julieta Ortega y Julieta Prandi: La Guerra de las Julieta",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Julieta Ortega: cumpleaños sin Prandi. Julieta Prandi: revelación en Sálvese Quien Pueda. La guerra de las Julieta es pura tensión. #JulietaOrtega #JulietaPrandi #GuerraDeLasJulieta #ComoAsi\n\n#Famosos #Chisme",
+          "hashtags": [
+            "JulietaOrtega",
+            "JulietaPrandi",
+            "GuerraDeLasJulieta",
+            "ComoAsi",
+            "Famosos",
+            "Chisme"
+          ],
+          "pinnedComment": "¿Qué opinas de la guerra entre Julieta Ortega y Julieta Prandi? ¡Comparte tu opinión!"
+        },
+        "youtube": {
+          "title": "La Guerra de las Julieta: Ortega y Prandi en Pleno Conflicto",
+          "hashtags": [
+            "ComoAsi",
+            "JulietaOrtega",
+            "JulietaPrandi",
+            "GuerraDeLasJulieta",
+            "Famosos",
+            "Chisme"
+          ],
+          "description": "Julieta Ortega celebró su cumpleaños sin la presencia de Julieta Prandi. Prandi reveló en Sálvese Quien Pueda que no son amigas. La guerra de las Julieta está en pleno apogeo. #ComoAsi #JulietaOrtega #JulietaPrandi #GuerraDeLasJulieta\n\n#Famosos #Chisme"
+        },
+        "instagram": {
+          "caption": "Julieta Ortega celebró su cumpleaños sin la presencia de Julieta Prandi. ¿Qué reveló Prandi sobre su relación con Ortega en Sálvese Quien Pueda? La guerra de las Julieta está en pleno apogeo. #JulietaOrtega #JulietaPrandi #GuerraDeLasJulieta #SálveseQuienPueda #ComoAsi\n\n#Famosos",
+          "hashtags": [
+            "JulietaOrtega",
+            "JulietaPrandi",
+            "GuerraDeLasJulieta",
+            "SálveseQuienPueda",
+            "ComoAsi",
+            "Famosos"
+          ],
+          "pinnedComment": "¿Quién tiene razón en esta guerra de las Julieta? ¡Déjenos sus comentarios!"
+        }
+      }
+    }
+  ]
+}
