@@ -115,10 +115,10 @@ export async function generateJson({ system, prompt, schema, maxTokens, temperat
 }
 
 // Fixed English description so the host looks the same in every video.
-export const MALA_FAMA_HOST = 'adult male devil talk show host, angular dark burgundy face, two polished black horns curving back, acid green eyes, slicked black hair with one white streak, short pointed beard, fitted black suit, magenta shirt, black gloves, acid green pocket square, blackened metal microphone, sly sideways executioner smile, raised eyebrow';
+export const MALA_FAMA_HOST = 'adult male devil talk show host, angular bright crimson red face and skin, two polished black horns curving back, acid green eyes, slicked black hair with one white streak, short pointed beard, fitted black suit, magenta shirt, black gloves, acid green pocket square, blackened metal microphone, sly sideways executioner smile, raised eyebrow';
 export const STYLE_SUFFIX = '2D adult editorial illustration, torn paper collage, expressive ink, halftone, photocopy grain, hard shadows, paparazzi flash, palette of ink black, ivory, acid green, electric magenta, cobalt blue';
 // CLIP-based models (SDXL) only read the first ~77 tokens, so the look goes first and short.
-export const STYLE_LEAD = 'pop art comic caricature, medium-wide scene with action, bold black ink outlines, halftone dots, torn paper collage background, magenta and cobalt blue backdrop with acid green accents, natural skin tones';
+export const STYLE_LEAD = 'pop art comic caricature, medium-wide scene with action, bold black ink outlines, halftone dots, torn paper collage background, magenta and cobalt blue backdrop with acid green accents, natural skin tones, no lettering or captions';
 export const MALA_FAMA_HOST_SHORT = 'devil talk show host with crimson red face, two black horns, glowing green eyes, slicked black hair, black suit, magenta shirt, holding a microphone, sly grin';
 export const NEGATIVE_PROMPT = 'text, letters, words, logo, watermark, caption, grid, split screen, ui, 3d render, pixar, disney, chibi, anime, plastic, child, nudity, lingerie, photo, blurry, deformed';
 

@@ -305,7 +305,13 @@ async function processJob(id) {
     if (!topicData) {
       // A smaller model sometimes repeats a topic from the memory it was given; ask again
       // with the rejected topic listed instead of failing the whole slot.
-      const avoid = [];
+      // Stories already made in the last two days are left out from the start, so the three
+      // daily slots do not keep landing on the same dominant headline.
+      const recent = await query(
+        `select topic, normalized_topic as "normalizedTopic", protagonist, category, event_key as "eventKey" from comoasi.editorial_memory
+         where status in ('generated','published') and created_at > now() - interval '48 hours' order by created_at desc limit 12`
+      );
+      const avoid = [...recent.rows];
       for (let attempt = 1; ; attempt += 1) {
         try {
           topicData = await resolveTopic(payload, avoid);
@@ -319,8 +325,8 @@ async function processJob(id) {
           await ensureNoHardDuplicate(topicData, Boolean(payload.force));
           break;
         } catch (duplicateError) {
-          if (attempt >= 3 || !String(duplicateError.message).startsWith('duplicate_topic_blocked')) throw duplicateError;
-          console.warn(`[como-asi] ${duplicateError.message}; asking for another topic (${attempt}/3)`);
+          if (attempt >= 4 || !String(duplicateError.message).startsWith('duplicate_topic_blocked')) throw duplicateError;
+          console.warn(`[como-asi] ${duplicateError.message}; asking for another topic (${attempt}/4)`);
           avoid.push({ topic: topicData.topic, normalizedTopic: normalizeTopic(topicData.normalizedTopic || topicData.topic), protagonist: topicData.protagonist, category: topicData.category, eventKey: topicData.eventKey });
         }
       }
