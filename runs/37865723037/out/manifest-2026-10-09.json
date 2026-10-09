@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "3dc98b68-ff27-417a-83c8-a586b6bb21e9",
+      "reelId": null,
+      "status": "failed",
+      "error": "duplicate_topic_blocked:Wanda Nara y Mauro Icardi reavivan el escándalo con una foto de boda",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    }
+  ]
+}
