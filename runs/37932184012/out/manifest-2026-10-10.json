@@ -1,0 +1,146 @@
+{
+  "date": "2026-10-10",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "argentina:chisme_polemica",
+      "jobId": "72b84f85-ffbb-4b00-9245-eddcc82f18d1",
+      "reelId": "8189bc94-fb5d-46a9-ae8d-a178048be491",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/8189bc94-fb5d-46a9-ae8d-a178048be491/final.mp4",
+      "coverAssetPath": "covers/8189bc94-fb5d-46a9-ae8d-a178048be491/mala-fama-devil-v1/cover.png",
+      "title": "Nicolás Repetto confirma separación",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Nicolás Repetto confirma separación tras 30 años con Florencia Raggi. La llamada en plena entrevista fue un momento incómodo. La imagen de pareja dorada se desmorona. #ComoAsi #Separacion #Famosos #ParejaDorada #CulturaPop\n\n#FamososDivorcian",
+          "hashtags": [
+            "ComoAsi",
+            "Separacion",
+            "Famosos",
+            "ParejaDorada",
+            "CulturaPop",
+            "FamososDivorcian"
+          ],
+          "pinnedComment": "¿Qué opinás del final de una relación que duró más que muchos matrimonios? #ComoAsi"
+        },
+        "youtube": {
+          "title": "Nicolás Repetto confirma separación tras 30 años con Florencia Raggi",
+          "hashtags": [
+            "ComoAsi",
+            "Separacion",
+            "Famosos",
+            "ParejaDorada",
+            "CulturaPop"
+          ],
+          "description": "Nicolás Repetto confirma separación tras 30 años con Florencia Raggi. La llamada en plena entrevista con Pergolini fue un momento incómodo. La imagen de pareja dorada se desmorona. La separación es una realidad.\n\n#ComoAsi #Separacion #Famosos #ParejaDorada #CulturaPop"
+        },
+        "instagram": {
+          "caption": "Nicolás Repetto confirma separación tras 30 años con Florencia Raggi. La llamada en plena entrevista con Pergolini fue un momento incómodo. La imagen de pareja dorada se desmorona. La felicidad es efímera. #ComoAsi #Separacion #Famosos #ParejaDorada #CulturaPop\n\n#FamososDivorcian",
+          "hashtags": [
+            "ComoAsi",
+            "Separacion",
+            "Famosos",
+            "ParejaDorada",
+            "CulturaPop",
+            "FamososDivorcian"
+          ],
+          "pinnedComment": "¿Qué opinás del final de una relación que duró más que muchos matrimonios? #ComoAsi"
+        }
+      }
+    },
+    {
+      "slot": "mediodia",
+      "time": "13:00",
+      "category": "argentina:famosos",
+      "jobId": "64b7a468-1f52-4d69-b042-72eb502e5572",
+      "reelId": "07515453-a669-4f18-98d7-534a6501bfed",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/07515453-a669-4f18-98d7-534a6501bfed/final.mp4",
+      "coverAssetPath": "covers/07515453-a669-4f18-98d7-534a6501bfed/mala-fama-devil-v1/cover.png",
+      "title": "Lionel Messi: La despedida se volvió un escándalo",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Malafama: Messi se despidió de River Plate en medio de un escándalo. ¿Sabotaje o exceso de pasión? #ComoAsi #MessiDespedida #RiverPlate #FutbolChamuyo #EscandaloFutbolero",
+          "hashtags": [
+            "ComoAsi",
+            "MessiDespedida",
+            "RiverPlate",
+            "FutbolChamuyo",
+            "EscandaloFutbolero"
+          ],
+          "pinnedComment": "River Plate vs AFA: ¿Quién se pasa de listo? #MessiDespedida"
+        },
+        "youtube": {
+          "title": "Malafama: La despedida de Messi en River Plate, un circo mediático",
+          "hashtags": [
+            "ComoAsi",
+            "MessiDespedida",
+            "RiverPlate",
+            "FutbolChamuyo",
+            "EscandaloFutbolero"
+          ],
+          "description": "Malafama te cuenta cómo la despedida de Lionel Messi en River Plate se convirtió en un escándalo. Acusaciones, sabotaje y un evento que se salió de control. #ComoAsi #MessiDespedida #RiverPlate #FutbolChamuyo #EscandaloFutbolero"
+        },
+        "instagram": {
+          "caption": "Malafama: La despedida de Messi en River Plate se volvió un circo mediático. Larry de Clay acusó a River de sabotear la fiesta del mejor del mundo. #ComoAsi #MessiDespedida #RiverPlate #FutbolChamuyo #EscandaloFutbolero",
+          "hashtags": [
+            "ComoAsi",
+            "MessiDespedida",
+            "RiverPlate",
+            "FutbolChamuyo",
+            "EscandaloFutbolero"
+          ],
+          "pinnedComment": "¿Te parece que River Plate se pasó de la raya con Messi? #MessiDespedida"
+        }
+      }
+    },
+    {
+      "slot": "noche",
+      "time": "20:30",
+      "category": "internacional:chisme_polemica",
+      "jobId": "8e801b72-7244-4ee1-8330-b9c3db6478af",
+      "reelId": "db085c6a-60f8-485a-b7ad-d2e1b9e4fb8c",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/db085c6a-60f8-485a-b7ad-d2e1b9e4fb8c/final.mp4",
+      "coverAssetPath": "covers/db085c6a-60f8-485a-b7ad-d2e1b9e4fb8c/mala-fama-devil-v1/cover.png",
+      "title": "Gunna y su ex socio en una guerra pública",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Gunna y su ex socio en una guerra pública por SB The Label. Escándalo en el mundo del trap. #GunnaVsExSocio #TrapWar #ComoAsi",
+          "hashtags": [
+            "GunnaVsExSocio",
+            "TrapWar",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Es justo que Gunna lance SB The Label sin su ex socio?"
+        },
+        "youtube": {
+          "title": "Gunna y su ex socio en una guerra pública por SB The Label",
+          "hashtags": [
+            "GunnaVsExSocio",
+            "SBTheLabel",
+            "TrapWar",
+            "ComoAsi"
+          ],
+          "description": "Gunna y su ex socio en una guerra pública por SB The Label. ¿Quién tiene la razón? #ComoAsi\n\n#GunnaVsExSocio #SBTheLabel #TrapWar"
+        },
+        "instagram": {
+          "caption": "Gunna y su ex socio en una guerra pública por SB The Label. ¿Quién tiene la razón? #GunnaVsExSocio #SBTheLabel #TrapWar #FamososWTF #ComoAsi",
+          "hashtags": [
+            "GunnaVsExSocio",
+            "SBTheLabel",
+            "TrapWar",
+            "FamososWTF",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Qué opinas sobre la guerra entre Gunna y su ex socio? ¿Traición o negocios?"
+        }
+      }
+    }
+  ]
+}
