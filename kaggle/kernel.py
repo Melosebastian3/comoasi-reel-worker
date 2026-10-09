@@ -153,6 +153,8 @@ def main():
     log(f"image server: {wait_http('http://127.0.0.1:7860/', 3600, image_server)}")
 
     args = f"--date {run['date']} --count {run.get('count', 3)}"
+    if run.get("fresh"):
+        args += " --fresh"
     if run.get("slots"):
         args += f" --slots {run['slots']}"
     code = sh(f"cd {APP} && node batch.js {args}", env=env, check=False)

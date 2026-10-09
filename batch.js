@@ -51,6 +51,8 @@ async function main() {
     let job = existing.rows[0];
     // A failed or cancelled attempt starts over with a fresh topic instead of reusing its results.
     if (['failed', 'cancelled'].includes(job?.status)) job = null;
+    // --fresh (test runs only) makes a new video even if the slot already has one.
+    if (process.argv.includes('--fresh') && job?.status === 'completed') job = null;
     if (job?.status === 'completed') {
       console.log(`[batch] ${runKey} already completed, skipping`);
     } else {
