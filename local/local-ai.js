@@ -209,6 +209,28 @@ function htmlToText(html) {
     .trim();
 }
 
+// The first few thousand characters of a news page are menus and headers, so the model used to see
+// only the headline and repeat it for 16 scenes. Keep the article itself: the JSON-LD articleBody
+// when the site publishes one, otherwise the description plus the page's real paragraphs.
+function articleText(html) {
+  const source = String(html || '');
+  for (const match of source.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const body = match[1].match(/"articleBody"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (body) {
+      try {
+        const text = htmlToText(JSON.parse(`"${body[1]}"`));
+        if (text.length > 300) return text;
+      } catch {}
+    }
+  }
+  const meta = source.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]+content=["']([^"']+)["']/i);
+  const paragraphs = [...source.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((match) => htmlToText(match[1]))
+    .filter((text) => text.length > 60);
+  const text = [meta ? htmlToText(meta[1]) : '', ...paragraphs].filter(Boolean).join(' ');
+  return text.length > 200 ? text : htmlToText(source);
+}
+
 export async function scrapePage({ url }) {
   try {
     const response = await fetch(url, {
@@ -217,7 +239,7 @@ export async function scrapePage({ url }) {
       signal: AbortSignal.timeout(30000),
     });
     const html = await response.text();
-    return { status: response.status, text: htmlToText(html) };
+    return { status: response.status, text: articleText(html) };
   } catch {
     return { status: 599, text: '' };
   }
