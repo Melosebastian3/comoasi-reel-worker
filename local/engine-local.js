@@ -269,10 +269,12 @@ async function fetchCurrentSignals(category, topic = "", market = "random") {
     collectPriority(priorityQueries),
     fetchEntertainmentFeeds(argentinaFocused ? "argentina" : "random")
   ]);
-  let normalized = normalize([...directFeedSignals, ...prioritySignals, ...generalSignals], 5);
+  // Gossip has to be fresh: by default only the last two days, widened by a day when too few.
+  const maxAgeDays = Number(process.env.SIGNAL_MAX_AGE_DAYS || 2);
+  let normalized = normalize([...directFeedSignals, ...prioritySignals, ...generalSignals], maxAgeDays);
   if (!topic && normalized.length < 8) {
     const fallbackSignals = await collect(argentinaFocused ? ["famosos argentinos actualidad", "farandula argentina famosos", "television argentina celebridades", "musica argentina famosos"] : ["celebrity gossip", "famosos chisme", "celebrity scandal", "famosos pareja"]);
-    normalized = normalize([...normalized, ...fallbackSignals], 7);
+    normalized = normalize([...normalized, ...fallbackSignals], maxAgeDays + 1);
   }
   return normalized;
 }
@@ -301,17 +303,17 @@ const routes = {
   "POST /api/engine/topic": [async ({ body }) => {
     const b = asBody(body);
     const rawCategory = asString(b.category, "viral_internet");
-    const marketCategoryMatch = rawCategory.match(/^(argentina|random):(.*)$/i);
+    const marketCategoryMatch = rawCategory.match(/^(argentina|random|internacional):(.*)$/i);
     const category = asString(marketCategoryMatch?.[2], rawCategory);
     const explicitMarket = asString(b.market).toLowerCase();
     const prefixedMarket = asString(marketCategoryMatch?.[1]).toLowerCase();
-    const market = explicitMarket === "argentina" || explicitMarket === "random" ? explicitMarket : prefixedMarket === "argentina" ? "argentina" : "random";
+    const market = ["argentina", "random", "internacional"].includes(explicitMarket) ? explicitMarket : ["argentina", "internacional"].includes(prefixedMarket) ? prefixedMarket : "random";
     const memory = asArray(b.memory).slice(0, 60);
     const learning = asArray(b.learning).slice(0, 40);
     const liveSignals = await fetchCurrentSignals(category, "", market);
     if (liveSignals.length === 0) return error("current_sources_unavailable", 503);
     const currentDate = (/* @__PURE__ */ new Date()).toISOString();
-    const marketInstruction = market === "argentina" ? "MERCADO ARGENTINA OBLIGATORIO: el tema debe involucrar a una celebridad de reconocimiento transversal para p\xFAblico general argentino o un evento de entretenimiento/cultura pop con v\xEDnculo directo, actual y verificable con Argentina. Prioriz\xE1 se\xF1ales de medios argentinos. No alcanza con que una noticia internacional haya sido republicada en Argentina. Pol\xEDtica y noticias duras siguen prohibidas. Busc\xE1 primero protagonistas de nivel masivo; el piso operativo de recognitionScore es 88, pero la preferencia editorial es 92 o m\xE1s." : "MERCADO RANDOM/GLOBAL: eleg\xED el mejor tema actual sin restricci\xF3n geogr\xE1fica, priorizando reconocimiento masivo latinoamericano o global. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s.";
+    const marketInstruction = market === "internacional" ? "MERCADO INTERNACIONAL OBLIGATORIO: el protagonista debe ser una celebridad internacional (Hollywood, m\xFAsica global, K-pop, realeza, deporte mundial o estrellas latinas de otros pa\xEDses) reconocible para el p\xFAblico latinoamericano; NO puede ser argentino ni la historia puede ser de la far\xE1ndula argentina. Pol\xEDtica y noticias duras siguen prohibidas. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s." : market === "argentina" ? "MERCADO ARGENTINA OBLIGATORIO: el tema debe involucrar a una celebridad de reconocimiento transversal para p\xFAblico general argentino o un evento de entretenimiento/cultura pop con v\xEDnculo directo, actual y verificable con Argentina. Prioriz\xE1 se\xF1ales de medios argentinos. No alcanza con que una noticia internacional haya sido republicada en Argentina. Pol\xEDtica y noticias duras siguen prohibidas. Busc\xE1 primero protagonistas de nivel masivo; el piso operativo de recognitionScore es 88, pero la preferencia editorial es 92 o m\xE1s." : "MERCADO RANDOM/GLOBAL: eleg\xED el mejor tema actual sin restricci\xF3n geogr\xE1fica, priorizando reconocimiento masivo latinoamericano o global. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s.";
     const viralCalibration = "CALIBRACI\xD3N VIRAL: el patr\xF3n de alto rendimiento que queremos repetir NO es repetir a Wanda Nara ni un tema concreto; es repetir la mec\xE1nica que funcion\xF3: famoso que se reconoce al instante + conflicto que se entiende en una sola frase + tensi\xF3n de romance, ego, papel\xF3n o contradicci\xF3n p\xFAblica + una consecuencia concreta + im\xE1genes f\xE1ciles de exagerar. Si dos candidatos est\xE1n parejos, gana el que necesita menos contexto, genera una reacci\xF3n emocional m\xE1s r\xE1pida y permite un t\xEDtulo que cualquiera entiende en menos de dos segundos. Penaliz\xE1 fuerte historias de nicho, conflictos burocr\xE1ticos, contexto largo, protagonistas secundarios y temas que solo son interesantes para fans. La memoria editorial sigue mandando: no repitas protagonista, evento ni \xE1ngulo reciente cuando exista una alternativa fuerte.";
     // Local-model guard: topics rejected as duplicates in this job. Their protagonists' headlines are
     // dropped so a smaller model cannot keep picking the same story.

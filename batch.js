@@ -8,10 +8,11 @@ import { pool, query } from './db.js';
 import { createJob } from './pipeline.js';
 import { runJobNow } from './job-runner.js';
 
+// Two Argentine gossip videos and one international one per day (Sebastian, 2026-10-09).
 const SLOTS = [
-  { key: 'manana', time: '08:00' },
-  { key: 'mediodia', time: '13:00' },
-  { key: 'noche', time: '20:30' },
+  { key: 'manana', time: '08:00', market: 'argentina' },
+  { key: 'mediodia', time: '13:00', market: 'argentina' },
+  { key: 'noche', time: '20:30', market: 'internacional' },
 ];
 // Same daily rotation as metricool-automation.js.
 const CATEGORY_ROTATIONS = [
@@ -36,7 +37,7 @@ async function main() {
   const count = Number(arg('count', 3));
   const dayIndex = Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 86400000);
   const rotation = CATEGORY_ROTATIONS[Math.abs(dayIndex) % CATEGORY_ROTATIONS.length];
-  const slots = SLOTS.map((slot, index) => ({ ...slot, category: rotation[index % rotation.length] }))
+  const slots = SLOTS.map((slot, index) => ({ ...slot, category: `${slot.market}:${rotation[index % rotation.length]}` }))
     .filter(slot => !wanted.length || wanted.includes(slot.key))
     .slice(0, count);
 
