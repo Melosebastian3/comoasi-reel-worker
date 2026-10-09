@@ -51,6 +51,22 @@ function storyLanguageStats(story) {
   return { english: englishSignals.length, spanish: spanishSignals.length, sample: narration.slice(0, 220) };
 }
 
+// Tells the next attempt exactly what the validator rejected (local open models need it spelled out).
+function storyRepairNote(story, issue) {
+  const lines = Array.isArray(story?.scenes) ? story.scenes.map(scene => String(scene?.narration || '').trim()) : [];
+  const words = lines.join(' ').split(/\s+/).filter(Boolean).length;
+  const notes = {
+    scene_shape: `devolvió ${lines.length} escenas; deben ser exactamente 16.`,
+    runtime: `las narraciones sumaban ${words} palabras; deben sumar entre 150 y 240.`,
+    weak_hook: 'la escena 1 era demasiado larga; debe tener menos de 20 palabras.',
+    open_ending: 'la escena 16 terminaba en pregunta o era muy corta; debe cerrar con una afirmación de al menos 5 palabras.',
+    too_many_questions: `había ${(lines.join(' ').match(/\?/g) || []).length} preguntas; como máximo 2.`,
+    empty_scene: 'alguna escena no tenía narración.',
+    language: 'había demasiadas palabras en inglés.',
+  };
+  return notes[issue] || `fue rechazado por: ${issue}.`;
+}
+
 function storyValidationIssue(story) {
   if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 16) return 'scene_shape';
   if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '')))) return 'delivery';
@@ -332,6 +348,7 @@ async function processJob(id) {
     let story = savedStory && !storyNeedsRegeneration(savedStory) ? savedStory : null;
     const reuseSavedStory = Boolean(story);
     if (!story) {
+      let repairNote = '';
       for (let storyAttempt = 1; storyAttempt <= 3; storyAttempt += 1) {
         const candidate = normalizeStory(await studioCall('/api/engine/story', {
           topic: topicData.topic,
@@ -376,6 +393,7 @@ async function processJob(id) {
           hostName: 'Mala Fama',
           tone: 'sátira negra panlatina, masculina, elegante, siniestra y despiadadamente venenosa',
           strictSpanish: storyAttempt > 1,
+          repairNote,
         }, { timeoutMs: 240000, attempts: 5 }));
         const issue = storyValidationIssue(candidate);
         if (!issue) {
@@ -384,6 +402,7 @@ async function processJob(id) {
         }
         const stats = storyLanguageStats(candidate);
         console.warn(`[como-asi] story validation rejected attempt ${storyAttempt}`, { issue, english: stats.english, spanish: stats.spanish, sample: stats.sample });
+        repairNote = storyRepairNote(candidate, issue);
       }
     }
     if (!story) throw new Error('story_validation_failed_after_3_attempts');
