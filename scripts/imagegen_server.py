@@ -26,14 +26,25 @@ lock = Lock()
 
 def load_flux():
     from diffusers import BitsAndBytesConfig, FluxPipeline, FluxTransformer2DModel
+    from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig, T5EncoderModel
 
     repo = "black-forest-labs/FLUX.1-schnell"
     quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16)
     transformer = FluxTransformer2DModel.from_pretrained(
         repo, subfolder="transformer", quantization_config=quant, torch_dtype=torch.float16
     )
-    pipe = FluxPipeline.from_pretrained(repo, transformer=transformer, torch_dtype=torch.float16)
-    pipe.enable_model_cpu_offload()
+    # The T5 text encoder is ~9.5 GB in fp16; 4-bit keeps the whole pipeline (~11 GB) on one 15 GB
+    # GPU, so nothing is offloaded to the ~30 GB of host RAM that Ollama and Node also use.
+    text_encoder_2 = T5EncoderModel.from_pretrained(
+        repo, subfolder="text_encoder_2", torch_dtype=torch.float16,
+        quantization_config=TransformersBitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16),
+    )
+    pipe = FluxPipeline.from_pretrained(repo, transformer=transformer, text_encoder_2=text_encoder_2, torch_dtype=torch.float16)
+    if os.environ.get("IMAGE_OFFLOAD") == "1":
+        pipe.enable_model_cpu_offload()
+    else:
+        pipe.to(DEVICE)
+    pipe.vae.enable_tiling()
 
     def run(req):
         return pipe(

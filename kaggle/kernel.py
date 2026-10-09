@@ -139,6 +139,7 @@ def main():
         image_env["CUDA_VISIBLE_DEVICES"] = "1"
     else:
         ollama_env["OLLAMA_KEEP_ALIVE"] = "0"  # free GPU memory for images between text calls
+        image_env["IMAGE_OFFLOAD"] = "1"  # share the single GPU with the text model
     # The image model downloads and loads while Ollama installs and pulls the text model.
     hf_token = os.path.join(os.path.dirname(glob.glob("/kaggle/input/**/run.json", recursive=True)[0]), "hf_token")
     if os.path.exists(hf_token):
