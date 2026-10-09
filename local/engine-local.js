@@ -456,7 +456,7 @@ CORRECCI\xD3N OBLIGATORIA: la elecci\xF3n anterior no aparec\xEDa en los titular
     const citedSignals = asArray(selected.sourceIndexes).map((value) => availableSignals[Math.trunc(Number(value))]).filter(Boolean);
     const claimCheck = await generateStructured("Eres un verificador de datos estricto. Respond\xE9s solo con lo que dicen los textos dados.", `TEMA PROPUESTO: ${JSON.stringify({ topic: selected.topic, title: selected.title, angle: selected.angle })}
 FUENTES CITADAS: ${JSON.stringify(citedSignals.map((signal) => ({ title: signal.title, text: asString(signal.text).slice(0, 1200) })))}
-\xBFLas fuentes dicen expl\xEDcitamente que ocurri\xF3 el conflicto o hecho central del tema (no solo que aparece la persona)? Si el tema agrega una pelea, ruptura, acusaci\xF3n, socio, pareja o consecuencia que las fuentes no mencionan, respond\xE9 supported=false.`, {
+\xBFLas fuentes cuentan el mismo hecho central que el tema, aunque sea con otras palabras? Respond\xE9 supported=true si lo cuentan. Respond\xE9 supported=false SOLO si el tema afirma un hecho que las fuentes no dicen (por ejemplo una pelea, ruptura, acusaci\xF3n, socio o pareja que no aparece). Que la nota no tenga esc\xE1ndalo no es motivo para rechazar.`, {
       type: "object",
       properties: { supported: { type: "boolean" }, reason: { type: "string" } },
       required: ["supported", "reason"]
