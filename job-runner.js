@@ -176,6 +176,7 @@ async function resolveTopic(payload, avoid = []) {
   const context = await loadMemory();
   // Topics already rejected as duplicates in this job go first so the model sees them.
   context.memory = [...avoid, ...context.memory];
+  context.avoid = avoid;
   return studioCall('/api/engine/topic', { category, ...context }, { timeoutMs: 180000, attempts: 5 });
 }
 
