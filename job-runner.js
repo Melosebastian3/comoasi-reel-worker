@@ -355,7 +355,7 @@ async function processJob(id) {
     const reuseSavedStory = Boolean(story);
     if (!story) {
       let repairNote = '';
-      for (let storyAttempt = 1; storyAttempt <= 3; storyAttempt += 1) {
+      for (let storyAttempt = 1; storyAttempt <= 4; storyAttempt += 1) {
         const candidate = normalizeStory(await studioCall('/api/engine/story', {
           topic: topicData.topic,
           title: topicData.title,
@@ -409,9 +409,10 @@ async function processJob(id) {
         const stats = storyLanguageStats(candidate);
         console.warn(`[como-asi] story validation rejected attempt ${storyAttempt}`, { issue, english: stats.english, spanish: stats.spanish, sample: stats.sample });
         repairNote = storyRepairNote(candidate, issue);
+        console.warn(`[como-asi] story repair note: ${repairNote}`);
       }
     }
-    if (!story) throw new Error('story_validation_failed_after_3_attempts');
+    if (!story) throw new Error('story_validation_failed_after_4_attempts');
     await persistJobResult(id, { story });
 
     const existingReel = await query('select storyboard from comoasi.reels where id=$1', [reel.id]);
