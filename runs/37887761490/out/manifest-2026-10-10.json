@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-10",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "chisme_polemica",
+      "jobId": "6f4bec20-92e2-4c6c-a1cc-6c41ba3fd328",
+      "reelId": "80e6d8ad-8e9d-490d-8347-5ef1e3fb14ba",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/80e6d8ad-8e9d-490d-8347-5ef1e3fb14ba/final.mp4",
+      "coverAssetPath": "covers/80e6d8ad-8e9d-490d-8347-5ef1e3fb14ba/mala-fama-devil-v1/cover.png",
+      "title": "Hugh Hefner’s Widow: Viuda de Hugh Hefner",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Crystal Harris, viuda de Hugh Hefner, le pide a Jessica Biel que 'reconsidere' su papel en Playmates. ¿Qué tan grande es el ego de Jessica? #ComoAsi #JessicaBiel #HughHefner #Viuda #Playmates #Controversia",
+          "hashtags": [
+            "ComoAsi",
+            "JessicaBiel",
+            "HughHefner",
+            "Viuda",
+            "Playmates",
+            "Controversia"
+          ],
+          "pinnedComment": "¿Reconsiderar o rechazar? ¡Dinos en los comentarios qué opinan!"
+        },
+        "youtube": {
+          "title": "Viuda de Hugh Hefner: Jessica Biel, reconsidera tu papel en Playmates",
+          "hashtags": [
+            "ComoAsi",
+            "JessicaBiel",
+            "HughHefner",
+            "Viuda",
+            "Playmates",
+            "Controversia"
+          ],
+          "description": "Crystal Harris, viuda de Hugh Hefner, pide a Jessica Biel que 'reconsidere' su papel en la serie Playmates. ¿Qué tan grande es el ego de Jessica? #ComoAsi #JessicaBiel #HughHefner #Viuda #Playmates #Controversia"
+        },
+        "instagram": {
+          "caption": "Viuda de Hugh Hefner pide a Jessica Biel que 'reconsidere' su papel en la serie de Playmates. ¿Qué tan grande es el ego de Jessica? #ComoAsi #JessicaBiel #HughHefner #Viuda #Playmates #Controversia",
+          "hashtags": [
+            "ComoAsi",
+            "JessicaBiel",
+            "HughHefner",
+            "Viuda",
+            "Playmates",
+            "Controversia"
+          ],
+          "pinnedComment": "¿Reconsiderar o rechazar? ¡Dinos en los comentarios qué opinan!"
+        }
+      }
+    },
+    {
+      "slot": "mediodia",
+      "time": "13:00",
+      "category": "famosos",
+      "jobId": "1ddbbc49-948a-45a5-9952-d3f788a08dcb",
+      "reelId": "f253723d-0346-4546-8ca5-c69cc4874a21",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/f253723d-0346-4546-8ca5-c69cc4874a21/final.mp4",
+      "coverAssetPath": "covers/f253723d-0346-4546-8ca5-c69cc4874a21/mala-fama-devil-v1/cover.png",
+      "title": "Yoo Seung-ho y la ruptura",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "¡Escándalo en el mundo del K-drama! Yoo Seung-ho y Lim Se-joo se separan después de seis años. La noticia sacude a la industria. #YooSeungHo #LimSeJoo #Kdrama #RomanceTerminado #ComoAsi",
+          "hashtags": [
+            "YooSeungHo",
+            "LimSeJoo",
+            "Kdrama",
+            "RomanceTerminado",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Qué crees que fue lo que llevó a Yoo Seung-ho y Lim Se-joo a terminar su relación?"
+        },
+        "youtube": {
+          "title": "Yoo Seung-ho y la ruptura: el fin de un romance de seis años",
+          "hashtags": [
+            "YooSeungHo",
+            "LimSeJoo",
+            "Kdrama",
+            "RomanceTerminado",
+            "ComoAsi"
+          ],
+          "description": "Yoo Seung-ho y Lim Se-joo confirman su ruptura después de seis años de relación. La noticia de la ruptura sacude al mundo del K-drama. #YooSeungHo #LimSeJoo #Kdrama #RomanceTerminado #ComoAsi"
+        },
+        "instagram": {
+          "caption": "Yoo Seung-ho y Lim Se-joo ponen fin a seis años de relación. ¿Qué pasó entre ellos? La industria del entretenimiento en shock. #YooSeungHo #LimSeJoo #RomanceTerminado #Kdrama #ComoAsi",
+          "hashtags": [
+            "YooSeungHo",
+            "LimSeJoo",
+            "RomanceTerminado",
+            "Kdrama",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Qué opinas sobre la ruptura de Yoo Seung-ho y Lim Se-joo? ¿Fue inevitable?"
+        }
+      }
+    },
+    {
+      "slot": "noche",
+      "time": "20:30",
+      "category": "chisme_polemica",
+      "jobId": "32351852-5cf9-4ff9-9e59-5bc8b708113b",
+      "reelId": null,
+      "status": "failed",
+      "error": "duplicate_topic_blocked:Wanda Nara y su bizarro guiño a Mauro Icardi desde las playas de Río de Janeiro",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    }
+  ]
+}
