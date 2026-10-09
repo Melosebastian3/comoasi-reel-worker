@@ -1,0 +1,42 @@
+# Hosts and schedules a hand-approved batch kept on the publish-media branch
+# (manual/<DATE>/manifest-<DATE>.json + reels/<id>/final.mp4). Manual only.
+# live=true posts for real; anything else is a dry run.
+name: Publish approved batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha de la carpeta manual/<fecha> en publish-media'
+        required: true
+      live:
+        description: 'Publicar de verdad (true) o solo probar (false)'
+        required: true
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-${{ inputs.date }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Take the approved batch
+        run: |
+          git fetch --depth=1 origin publish-media
+          git worktree add media FETCH_HEAD
+          test -f "media/manual/${{ inputs.date }}/manifest-${{ inputs.date }}.json"
+      - name: Host videos and schedule on Buffer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          PUBLISH_ENABLED: ${{ inputs.live == 'true' && 'true' || '' }}
+        run: scripts/publish-batch.sh "media/manual/${{ inputs.date }}" "${{ inputs.date }}"
