@@ -456,12 +456,13 @@ CORRECCI\xD3N OBLIGATORIA: la elecci\xF3n anterior no aparec\xEDa en los titular
     const citedSignals = asArray(selected.sourceIndexes).map((value) => availableSignals[Math.trunc(Number(value))]).filter(Boolean);
     const claimCheck = await generateStructured("Eres un verificador de datos estricto. Respond\xE9s solo con lo que dicen los textos dados.", `TEMA PROPUESTO: ${JSON.stringify({ topic: selected.topic, title: selected.title, angle: selected.angle })}
 FUENTES CITADAS: ${JSON.stringify(citedSignals.map((signal) => ({ title: signal.title, text: asString(signal.text).slice(0, 1200) })))}
-\xBFLas fuentes cuentan el mismo hecho central que el tema, aunque sea con otras palabras? Respond\xE9 supported=true si lo cuentan. Respond\xE9 supported=false SOLO si el tema afirma un hecho que las fuentes no dicen (por ejemplo una pelea, ruptura, acusaci\xF3n, socio o pareja que no aparece). Que la nota no tenga esc\xE1ndalo no es motivo para rechazar.`, {
+\xBFLas fuentes cuentan el mismo hecho central que el tema, aunque sea con otras palabras? Respond\xE9 supported=true si lo cuentan. Respond\xE9 supported=false SOLO si el tema afirma un hecho que las fuentes no dicen (por ejemplo una pelea, ruptura, acusaci\xF3n, socio o pareja que no aparece). Que la nota no tenga esc\xE1ndalo no es motivo para rechazar.
+Adem\xE1s, isGossip=true solo si es chisme de famosos que la gente comenta: romance, ruptura, infidelidad, pelea personal, papel\xF3n, ego o pol\xE9mica de cultura pop. isGossip=false para pases, contratos o resultados deportivos, causas judiciales de negocios o tierras, pol\xEDtica, econom\xEDa o lanzamientos sin conflicto.`, {
       type: "object",
-      properties: { supported: { type: "boolean" }, reason: { type: "string" } },
-      required: ["supported", "reason"]
+      properties: { supported: { type: "boolean" }, isGossip: { type: "boolean" }, reason: { type: "string" } },
+      required: ["supported", "isGossip", "reason"]
     }, 400).catch(() => ({ supported: false, reason: "claim_check_failed" }));
-    if (claimCheck.supported !== true) {
+    if (claimCheck.supported !== true || claimCheck.isGossip === false) {
       console.warn(`[como-asi] topic claim not supported by sources: ${asString(selected.topic)} (${asString(claimCheck.reason)})`);
       return error(`topic_not_grounded_in_sources|${JSON.stringify({ topic: asString(selected.topic), protagonist: asString(selected.protagonist) })}`, 503);
     }

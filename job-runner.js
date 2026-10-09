@@ -63,6 +63,7 @@ function storyRepairNote(story, issue) {
     too_many_questions: `había ${(lines.join(' ').match(/\?/g) || []).length} preguntas; como máximo 2.`,
     empty_scene: 'alguna escena no tenía narración.',
     language: 'había demasiadas palabras en inglés.',
+    repetitive: 'repetía las mismas frases en varias escenas; cada escena debe decir algo distinto (un dato nuevo, una opinión o un remate).',
   };
   return notes[issue] || `fue rechazado por: ${issue}.`;
 }
@@ -70,6 +71,9 @@ function storyRepairNote(story, issue) {
 function storyValidationIssue(story) {
   if (!story || !Array.isArray(story.scenes) || story.scenes.length !== 16) return 'scene_shape';
   if (story.scenes.some(scene => !validDeliveries.has(String(scene?.delivery || '')))) return 'delivery';
+  // A script repeating the same line is not publishable (2026-10-09 test: 16 scenes, 3 distinct lines).
+  const distinct = new Set(story.scenes.map(scene => String(scene?.narration || '').toLowerCase().replace(/[^a-z0-9áéíóúñ]+/g, ' ').trim()));
+  if (distinct.size < 14) return 'repetitive';
   const stats = storyLanguageStats(story);
   if (stats.english >= 6 && stats.english > Math.max(5, Math.ceil(stats.spanish * 0.55))) return 'language';
 
