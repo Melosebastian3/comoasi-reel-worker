@@ -159,13 +159,56 @@ async function fetchGoogleNews(query) {
   }));
   return batches.flatMap((batch) => batch.status === "fulfilled" ? batch.value : []);
 }
+// Sebastian (2026-10-09): a wide radar, not one or two outlets. Every feed below answered from a
+// GitHub runner on 2026-10-09; a feed that stops answering just contributes nothing.
 const entertainmentFeeds = [
-  { source: "Paparazzi", url: "https://www.paparazzi.com.ar/feed/" },
-  { source: "Infobae Teleshow", url: "https://www.infobae.com/arc/outboundfeeds/rss/category/teleshow/?outputType=xml" },
-  { source: "Variety", url: "https://variety.com/feed/" },
-  { source: "Deadline", url: "https://deadline.com/feed/" },
-  { source: "TMZ", url: "https://www.tmz.com/rss.xml" }
+  { source: "Paparazzi", market: "argentina", url: "https://www.paparazzi.com.ar/feed/" },
+  { source: "Infobae Teleshow", market: "argentina", url: "https://www.infobae.com/arc/outboundfeeds/rss/category/teleshow/?outputType=xml" },
+  { source: "Clar\xEDn Espect\xE1culos", market: "argentina", url: "https://www.clarin.com/rss/espectaculos/" },
+  { source: "La Naci\xF3n Espect\xE1culos", market: "argentina", url: "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/espectaculos/?outputType=xml" },
+  { source: "TN Show", market: "argentina", url: "https://tn.com.ar/arc/outboundfeeds/rss/category/show/?outputType=xml" },
+  { source: "Exitoina", market: "argentina", url: "https://www.exitoina.com/rss" },
+  { source: "Perfil Espect\xE1culos", market: "argentina", url: "https://www.perfil.com/feed/espectaculos" },
+  { source: "Caras", market: "argentina", url: "https://caras.perfil.com/feed" },
+  { source: "\xC1mbito Espect\xE1culos", market: "argentina", url: "https://www.ambito.com/rss/pages/espectaculos.xml" },
+  { source: "Primicias Ya", market: "argentina", url: "https://www.primiciasya.com/rss/pages/home.xml" },
+  { source: "Page Six", market: "internacional", url: "https://pagesix.com/feed/" },
+  { source: "E! Online", market: "internacional", url: "https://www.eonline.com/syndication/feeds/rssfeeds/topstories.xml" },
+  { source: "Just Jared", market: "internacional", url: "https://www.justjared.com/feed/" },
+  { source: "TMZ", market: "internacional", url: "https://www.tmz.com/rss.xml" },
+  { source: "Billboard", market: "internacional", url: "https://www.billboard.com/feed/" },
+  { source: "Variety", market: "internacional", url: "https://variety.com/feed/" },
+  { source: "Infobae Entretenimiento", market: "internacional", url: "https://www.infobae.com/arc/outboundfeeds/rss/category/america/entretenimiento/?outputType=xml" },
+  { source: "Reddit popculturechat", market: "internacional", url: "https://www.reddit.com/r/popculturechat/hot/.rss" }
 ];
+// What people are searching right now; each trend carries the news items behind it.
+async function fetchGoogleTrends(geo) {
+  try {
+    const response = await fetch(`https://trends.google.com/trending/rss?geo=${geo}`, { headers: sourceHeaders, signal: AbortSignal.timeout(9e3) });
+    if (!response.ok) return [];
+    const xml = await response.text();
+    return (xml.match(/<item>[\s\S]*?<\/item>/gi) || []).flatMap((item) => {
+      const term = rssTag(item, "title");
+      const traffic = rssTag(item, "ht:approx_traffic");
+      const published = new Date(rssTag(item, "pubDate"));
+      return (item.match(/<ht:news_item>[\s\S]*?<\/ht:news_item>/gi) || []).slice(0, 2).flatMap((news) => {
+        const title = rssTag(news, "ht:news_item_title");
+        const url = rssTag(news, "ht:news_item_url");
+        if (!title || !url) return [];
+        return [{
+          title,
+          url,
+          source: rssTag(news, "ht:news_item_source") || "Google Trends",
+          publishedAt: Number.isNaN(published.getTime()) ? "" : published.toISOString(),
+          provider: "Google Trends",
+          trending: `${term} (${traffic || "+"} b\xFAsquedas en ${geo})`
+        }];
+      });
+    });
+  } catch {
+    return [];
+  }
+}
 const entertainmentDomains = [
   // Argentina
   "paparazzi.com.ar",
@@ -211,7 +254,7 @@ async function fetchEntertainmentFeed(feed) {
     if (!response.ok) return [];
     const xml = await response.text();
     const items = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
-    return items.slice(0, 18).flatMap((item) => {
+    return items.slice(0, 15).flatMap((item) => {
       const title = rssTag(item, "title");
       const articleUrl = rssTag(item, "link") || rssTag(item, "guid");
       const published = rssTag(item, "pubDate") || rssTag(item, "published") || rssTag(item, "updated");
@@ -230,9 +273,27 @@ async function fetchEntertainmentFeed(feed) {
   }
 }
 async function fetchEntertainmentFeeds(market = "random") {
-  const selectedFeeds = market === "argentina" ? entertainmentFeeds.filter((feed) => ["Paparazzi", "Infobae Teleshow"].includes(feed.source)) : entertainmentFeeds;
-  const batches = await Promise.allSettled(selectedFeeds.map(fetchEntertainmentFeed));
+  const selectedFeeds = ["argentina", "internacional"].includes(market) ? entertainmentFeeds.filter((feed) => feed.market === market) : entertainmentFeeds;
+  const trendGeos = market === "argentina" ? ["AR"] : market === "internacional" ? ["US", "MX"] : ["AR", "US"];
+  const batches = await Promise.allSettled([...selectedFeeds.map(fetchEntertainmentFeed), ...trendGeos.map(fetchGoogleTrends)]);
   return batches.flatMap((batch) => batch.status === "fulfilled" ? batch.value : []);
+}
+// Buzz: how many different outlets carry the same story (shared proper names in the headline).
+// A story five outlets are covering is more viral than one a single site posted.
+const buzzStopwords = new Set(["argentina", "buenos", "aires", "estados", "unidos", "netflix", "video", "fotos", "mundial", "teleshow", "streaming", "instagram", "tiktok", "youtube", "after", "before", "their", "which", "where", "there", "about"]);
+function headlineNames(title) {
+  return new Set((asString(title).normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/\b[A-Z][a-zA-Z]{4,}\b/g) || []).map((word) => word.toLowerCase()).filter((word) => !buzzStopwords.has(word)));
+}
+function withBuzz(signals) {
+  const names = signals.map((signal) => headlineNames(signal.title));
+  return signals.map((signal, index) => {
+    const outlets = new Set();
+    signals.forEach((other, otherIndex) => {
+      if (otherIndex === index || other.source === signal.source) return;
+      for (const name of names[index]) if (names[otherIndex].has(name)) { outlets.add(other.source); break; }
+    });
+    return { ...signal, buzz: outlets.size + 1 };
+  });
 }
 async function fetchCurrentSignals(category, topic = "", market = "random") {
   const compactTopic = topic.split(/\s+/).filter((word) => word.length > 2).slice(0, 7).join(" ");
@@ -255,19 +316,29 @@ async function fetchCurrentSignals(category, topic = "", market = "random") {
   const normalize = (signals, maxAgeDays) => {
     const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1e3;
     const seen = /* @__PURE__ */ new Set();
-    return signals.filter((signal) => {
+    const fresh = signals.filter((signal) => {
       const normalized2 = signal.title.toLowerCase().replace(/[^a-z0-9áéíóúñü]+/gi, " ").trim();
       if (!normalized2 || seen.has(normalized2)) return false;
       const date = signal.publishedAt ? new Date(signal.publishedAt).getTime() : Date.now();
       if (!Number.isNaN(date) && date < cutoff) return false;
       seen.add(normalized2);
       return true;
-    }).sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || "")).slice(0, 40);
+    });
+    // Most-covered and trending stories first, at most 5 per outlet so no single site fills the radar.
+    const perSource = new Map();
+    return withBuzz(fresh)
+      .sort((a, b) => b.buzz + (b.trending ? 2 : 0) - (a.buzz + (a.trending ? 2 : 0)) || (b.publishedAt || "").localeCompare(a.publishedAt || ""))
+      .filter((signal) => {
+        const count = perSource.get(signal.source) || 0;
+        perSource.set(signal.source, count + 1);
+        return count < 5;
+      })
+      .slice(0, 45);
   };
   const [generalSignals, prioritySignals, directFeedSignals] = await Promise.all([
     collect(specificQueries),
     collectPriority(priorityQueries),
-    fetchEntertainmentFeeds(argentinaFocused ? "argentina" : "random")
+    fetchEntertainmentFeeds(market)
   ]);
   // Gossip has to be fresh: by default only the last two days, widened by a day when too few.
   const maxAgeDays = Number(process.env.SIGNAL_MAX_AGE_DAYS || 2);
@@ -314,14 +385,14 @@ const routes = {
     if (liveSignals.length === 0) return error("current_sources_unavailable", 503);
     const currentDate = (/* @__PURE__ */ new Date()).toISOString();
     const marketInstruction = market === "internacional" ? "MERCADO INTERNACIONAL OBLIGATORIO: el protagonista debe ser una celebridad internacional (Hollywood, m\xFAsica global, K-pop, realeza, deporte mundial o estrellas latinas de otros pa\xEDses) reconocible para el p\xFAblico latinoamericano; NO puede ser argentino ni la historia puede ser de la far\xE1ndula argentina. Pol\xEDtica y noticias duras siguen prohibidas. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s." : market === "argentina" ? "MERCADO ARGENTINA OBLIGATORIO: el tema debe involucrar a una celebridad de reconocimiento transversal para p\xFAblico general argentino o un evento de entretenimiento/cultura pop con v\xEDnculo directo, actual y verificable con Argentina. Prioriz\xE1 se\xF1ales de medios argentinos. No alcanza con que una noticia internacional haya sido republicada en Argentina. Pol\xEDtica y noticias duras siguen prohibidas. Busc\xE1 primero protagonistas de nivel masivo; el piso operativo de recognitionScore es 88, pero la preferencia editorial es 92 o m\xE1s." : "MERCADO RANDOM/GLOBAL: eleg\xED el mejor tema actual sin restricci\xF3n geogr\xE1fica, priorizando reconocimiento masivo latinoamericano o global. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s.";
-    const viralCalibration = "CALIBRACI\xD3N VIRAL: el patr\xF3n de alto rendimiento que queremos repetir NO es repetir a Wanda Nara ni un tema concreto; es repetir la mec\xE1nica que funcion\xF3: famoso que se reconoce al instante + conflicto que se entiende en una sola frase + tensi\xF3n de romance, ego, papel\xF3n o contradicci\xF3n p\xFAblica + una consecuencia concreta + im\xE1genes f\xE1ciles de exagerar. Si dos candidatos est\xE1n parejos, gana el que necesita menos contexto, genera una reacci\xF3n emocional m\xE1s r\xE1pida y permite un t\xEDtulo que cualquiera entiende en menos de dos segundos. Penaliz\xE1 fuerte historias de nicho, conflictos burocr\xE1ticos, contexto largo, protagonistas secundarios y temas que solo son interesantes para fans. La memoria editorial sigue mandando: no repitas protagonista, evento ni \xE1ngulo reciente cuando exista una alternativa fuerte.";
+    const viralCalibration = "RADAR VIRAL: cada se\xF1al trae buzz (cu\xE1ntos medios distintos cubren esa misma historia) y algunas trending (b\xFAsquedas en Google ahora). Prioriz\xE1 la historia con m\xE1s buzz o tendencia que encaje en chisme con humor negro; una nota que public\xF3 un solo sitio pierde contra la que est\xE1 en todos lados. CALIBRACI\xD3N VIRAL: el patr\xF3n de alto rendimiento que queremos repetir NO es repetir a Wanda Nara ni un tema concreto; es repetir la mec\xE1nica que funcion\xF3: famoso que se reconoce al instante + conflicto que se entiende en una sola frase + tensi\xF3n de romance, ego, papel\xF3n o contradicci\xF3n p\xFAblica + una consecuencia concreta + im\xE1genes f\xE1ciles de exagerar. Si dos candidatos est\xE1n parejos, gana el que necesita menos contexto, genera una reacci\xF3n emocional m\xE1s r\xE1pida y permite un t\xEDtulo que cualquiera entiende en menos de dos segundos. Penaliz\xE1 fuerte historias de nicho, conflictos burocr\xE1ticos, contexto largo, protagonistas secundarios y temas que solo son interesantes para fans. La memoria editorial sigue mandando: no repitas protagonista, evento ni \xE1ngulo reciente cuando exista una alternativa fuerte.";
     // Local-model guard: topics rejected as duplicates in this job. Their protagonists' headlines are
     // dropped so a smaller model cannot keep picking the same story.
     const avoid = asArray(b.avoid);
     const plainTokens = (value) => asString(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((token) => token.length >= 4);
     const avoidTokens = new Set(avoid.flatMap((item) => plainTokens(item?.protagonist)));
     const freshSignals = liveSignals.filter((signal) => !plainTokens(`${signal.title} ${signal.text || ""}`).some((token) => avoidTokens.has(token)));
-    const availableSignals = (freshSignals.length >= 5 ? freshSignals : liveSignals).slice(0, 28);
+    const availableSignals = (freshSignals.length >= 5 ? freshSignals : liveSignals).slice(0, 40);
     // Sebastian (2026-10-09): dark humor can be strong, but abuse is off limits.
     const hardLimits = "\nL\xCDMITES DUROS: el humor negro puede ser fuerte, pero nunca elijas historias de abuso sexual, violencia de g\xE9nero, maltrato, menores en riesgo, muertes recientes ni enfermedades graves como tema.";
     const avoidInstruction = hardLimits + (avoid.length ? `\nPROHIBIDO repetir estos temas ya hechos ni a sus protagonistas: ${JSON.stringify(avoid.map((item) => ({ topic: item?.topic, protagonist: item?.protagonist })))}` : "");
