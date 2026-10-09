@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-09",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "famosos",
+      "jobId": "1c13044a-05d2-4a6a-8e8a-d30526798002",
+      "reelId": "7e668291-75b6-4665-9074-0ff643cf981d",
+      "status": "failed",
+      "error": "fetch failed",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": "Wanda Nara y Mauro Icardi: El divorcio más largo",
+      "publishingKit": null
+    }
+  ]
+}
