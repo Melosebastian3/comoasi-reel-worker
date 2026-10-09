@@ -118,8 +118,8 @@ export async function generateJson({ system, prompt, schema, maxTokens, temperat
 export const MALA_FAMA_HOST = 'adult male devil talk show host, angular dark burgundy face, two polished black horns curving back, acid green eyes, slicked black hair with one white streak, short pointed beard, fitted black suit, magenta shirt, black gloves, acid green pocket square, blackened metal microphone, sly sideways executioner smile, raised eyebrow';
 export const STYLE_SUFFIX = '2D adult editorial illustration, torn paper collage, expressive ink, halftone, photocopy grain, hard shadows, paparazzi flash, palette of ink black, ivory, acid green, electric magenta, cobalt blue';
 // CLIP-based models (SDXL) only read the first ~77 tokens, so the look goes first and short.
-export const STYLE_LEAD = 'pop art comic caricature illustration, bold black ink outlines, halftone dots, torn paper collage, flat magenta, cobalt blue and acid green colors, not a photo';
-export const MALA_FAMA_HOST_SHORT = 'grinning devil host with dark red skin, black horns, acid green eyes, slicked black hair, black suit, magenta shirt, holding a microphone';
+export const STYLE_LEAD = 'pop art comic caricature, medium-wide scene with action, bold black ink outlines, halftone dots, torn paper collage background, magenta and cobalt blue backdrop with acid green accents, natural skin tones';
+export const MALA_FAMA_HOST_SHORT = 'devil talk show host with crimson red face, two black horns, glowing green eyes, slicked black hair, black suit, magenta shirt, holding a microphone, sly grin';
 export const NEGATIVE_PROMPT = 'text, letters, words, logo, watermark, caption, grid, split screen, ui, 3d render, pixar, disney, chibi, anime, plastic, child, nudity, lingerie, photo, blurry, deformed';
 
 // Diffusion models read ~77 English tokens; the Spanish Studio prompts are far longer.
@@ -130,7 +130,7 @@ async function condensePrompt(prompt) {
   }
   const schema = { type: 'object', properties: { subject: { type: 'string' } }, required: ['subject'] };
   const result = await generateJson({
-    system: `You write prompts for an image model. Output one English description of at most ${Number(process.env.IMAGE_PROMPT_WORDS || 30)} words describing only the visible subjects, their appearance, action, symbolic objects, setting and emotion. Keep celebrity names exactly as given. No style words, no brand logos, no text instructions.`,
+    system: `You write prompts for an image model. Output one English description of at most ${Number(process.env.IMAGE_PROMPT_WORDS || 30)} words starting with what the people are doing and the absurd symbolic objects around them, then the setting and emotion; show bodies and action, not a close-up portrait. Keep celebrity names exactly as given. No style words, no brand logos, no text instructions.`,
     prompt,
     schema,
     maxTokens: 200,
