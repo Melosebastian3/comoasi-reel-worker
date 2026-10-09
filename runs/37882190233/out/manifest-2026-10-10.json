@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-10",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "chisme_polemica",
+      "jobId": "7f58d7cc-ee45-4cff-8e28-496bd7cb29d3",
+      "reelId": "1d42b7d7-8f5a-45ed-b7e9-8c1d4bcadc20",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/1d42b7d7-8f5a-45ed-b7e9-8c1d4bcadc20/final.mp4",
+      "coverAssetPath": "covers/1d42b7d7-8f5a-45ed-b7e9-8c1d4bcadc20/mala-fama-devil-v1/cover.png",
+      "title": "Julieta Prandi confiesa que no es amiga de Julieta Ortega en su cumpleaños",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Julieta Prandi confiesa que no es amiga de Julieta Ortega en su cumpleaños. La revelación estremece el círculo social. #JulietaPrandi #JulietaOrtega #Chisme #ComoAsi\n\n#Wtf #Famosos",
+          "hashtags": [
+            "JulietaPrandi",
+            "JulietaOrtega",
+            "Chisme",
+            "ComoAsi",
+            "Wtf",
+            "Famosos"
+          ],
+          "pinnedComment": "¿Qué te pareció la falta de respeto de Prandi hacia Ortega? #ComoAsi"
+        },
+        "youtube": {
+          "title": "Julieta Prandi confiesa que no es amiga de Julieta Ortega en su cumpleaños",
+          "hashtags": [
+            "JulietaPrandi",
+            "JulietaOrtega",
+            "Chisme",
+            "ComoAsi",
+            "Wtf",
+            "Famosos"
+          ],
+          "description": "Julieta Prandi confiesa que no es amiga de Julieta Ortega en su cumpleaños. La revelación estremece el círculo social. #JulietaPrandi #JulietaOrtega #Chisme #ComoAsi\n\n#Wtf #Famosos"
+        },
+        "instagram": {
+          "caption": "Julieta Prandi confiesa que no es amiga de Julieta Ortega en su cumpleaños. La revelación estremece el círculo social. #JulietaPrandi #JulietaOrtega #Famosos #Chisme #ComoAsi\n\n#Wtf",
+          "hashtags": [
+            "JulietaPrandi",
+            "JulietaOrtega",
+            "Famosos",
+            "Chisme",
+            "ComoAsi",
+            "Wtf"
+          ],
+          "pinnedComment": "¿Qué te parece la confesión de Prandi? ¿Era de esperar o te tomaste por sorpresa?"
+        }
+      }
+    }
+  ]
+}
