@@ -6,8 +6,11 @@ name: Produce daily reels
 
 on:
   # Autopilot (approved by Sebastian 2026-10-09): 00:30 Buenos Aires, same-day posts.
+  # GitHub sometimes drops a scheduled run (it skipped 2026-10-10), so a second slot at 03:30
+  # Buenos Aires retries; it stands down once the day's batch is scheduled on Buffer.
   schedule:
     - cron: '30 3 * * *'
+    - cron: '30 6 * * *'
   workflow_dispatch:
     inputs:
       date:
@@ -28,7 +31,25 @@ permissions:
   contents: write  # test runs push the videos to the review-outputs branch (see last step)
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATE=$(TZ=America/Argentina/Buenos_Aires date +%F)
+          # publish-batch.sh leaves scheduled.json in the release once a live batch is on Buffer.
+          if [ "${{ github.event_name }}" = "schedule" ] && gh api "repos/${{ github.repository }}/releases/tags/media-$DATE" --jq '.assets[].name' 2>/dev/null | grep -qx scheduled.json; then
+            echo "media-$DATE already scheduled on Buffer; this backup run stands down"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
   produce:
+    needs: guard
+    if: needs.guard.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 355
     env:
@@ -86,7 +107,7 @@ jobs:
           node local/sync.js export-context bundle/context.json --date "$DATE"
           git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
           printf '{"fresh":%s,"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
-            "${{ github.event_name == 'push' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || ((github.event_name == 'push' || github.event_name == 'schedule') && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
+            "${{ github.event_name == 'push' || github.event_name == 'schedule' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || ((github.event_name == 'push' || github.event_name == 'schedule') && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
           cat bundle/run.json
 
       - name: Generate on Kaggle GPU

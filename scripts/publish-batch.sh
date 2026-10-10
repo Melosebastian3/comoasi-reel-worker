@@ -30,4 +30,7 @@ done
 if [ -z "${BUFFER_API_KEY:-}" ]; then echo "BUFFER_API_KEY not set; videos hosted, nothing scheduled"; exit 0; fi
 MODE=""
 [ "${PUBLISH_ENABLED:-}" = "true" ] && MODE="--live"
-node publish/buffer.js "$MANIFEST" --media-base "https://github.com/$REPO/releases/download/$TAG" $MODE
+node publish/buffer.js "$MANIFEST" --media-base "https://github.com/$REPO/releases/download/$TAG" $MODE | tee /tmp/scheduled.json
+# Marks the day as done so the backup schedule does not post it twice.
+[ -n "$MODE" ] && gh release upload "$TAG" /tmp/scheduled.json --repo "$REPO" --clobber
+exit 0
