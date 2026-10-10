@@ -1,0 +1,102 @@
+{
+  "date": "2026-10-10",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "mediodia",
+      "time": "13:00",
+      "category": "argentina:famosos",
+      "jobId": "baeaa2d0-a14a-46d4-88a6-59d89d9ba43b",
+      "reelId": "44c77cb1-5274-42e0-8579-b3eb9fa70730",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/44c77cb1-5274-42e0-8579-b3eb9fa70730/final.mp4",
+      "coverAssetPath": "covers/44c77cb1-5274-42e0-8579-b3eb9fa70730/mala-fama-devil-v1/cover.png",
+      "title": "Paula Chaves y Pedro Alfonso: La noticia que dejó a todos en shock",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Divorcio de Paula y Pedro: la noticia que dejó a todos en shock. La sonrisa de funeral de Paula y el guion vendido de Pedro, bajo luces rotas. ¿Te lo perdiste? #PaulaChaves #PedroAlfonso #DivorcioShock #ComoAsi #HumorNegro",
+          "hashtags": [
+            "PaulaChaves",
+            "PedroAlfonso",
+            "DivorcioShock",
+            "ComoAsi",
+            "HumorNegro"
+          ],
+          "pinnedComment": "¿El drama fue más barato que su último reality? Deja tu mejor comentario."
+        },
+        "youtube": {
+          "title": "Paula Chaves y Pedro Alfonso: La noticia que dejó a todos en shock",
+          "hashtags": [
+            "PaulaChaves",
+            "PedroAlfonso",
+            "DivorcioShock",
+            "ComoAsi",
+            "HumorNegro"
+          ],
+          "description": "Mala Fama desmenuza el anuncio de divorcio de Paula Chaves y Pedro Alfonso. Entre luces rotas, sonrisas de funeral y un guion vendido, el amor muere pero la vanidad sigue cobrando vida. Un análisis oscuro, preciso y con la sonrisa de verdugo que solo ComoAsí puede ofrecer.\n\n#PaulaChaves #PedroAlfonso #DivorcioShock #ComoAsi #HumorNegro"
+        },
+        "instagram": {
+          "caption": "Paula Chaves y Pedro Alfonso anunciaron su divorcio y dejaron al público helado. La conductora, siempre impecable, ahora luce una sonrisa de funeral; Pedro, actor de fachada, parece haber vendido su guion de amor. La ruptura se dio bajo luces rotas y paparazzi temblorosos. ¿El drama barato? Más inesperado que su último reality. #PaulaChaves #PedroAlfonso #DivorcioShock #ComoAsi #HumorNegro\n\n#ChismeViral",
+          "hashtags": [
+            "PaulaChaves",
+            "PedroAlfonso",
+            "DivorcioShock",
+            "ComoAsi",
+            "HumorNegro",
+            "ChismeViral"
+          ],
+          "pinnedComment": "¿Quién diría que el amor de pantalla terminaría en un guion de terror? Cuéntanos tu teoría más salvaje."
+        }
+      }
+    },
+    {
+      "slot": "noche",
+      "time": "20:30",
+      "category": "internacional:chisme_polemica",
+      "jobId": "b9f20998-41b9-4b9e-b06b-98005e850f05",
+      "reelId": "380cf6f3-d18d-445b-880e-2030b3612933",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/380cf6f3-d18d-445b-880e-2030b3612933/final.mp4",
+      "coverAssetPath": "covers/380cf6f3-d18d-445b-880e-2030b3612933/mala-fama-devil-v1/cover.png",
+      "title": "Meghan Markle regresa a la realeza deslumbrante",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Meghan llega a los Cotswolds con un blazer de alfombra roja y la audiencia se queda sin aliento. La princesa del drama luce más estrella que aristócrata. #MeghanBlazer #RealezaVsHollywood #ComoAsí #ChismeViral #HumorNegro\n\n#ComoAsi",
+          "hashtags": [
+            "MeghanBlazer",
+            "RealezaVsHollywood",
+            "ComoAsí",
+            "ChismeViral",
+            "HumorNegro",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Qué es peor, la corona o el blazer? Deja tu veredicto."
+        },
+        "youtube": {
+          "title": "Meghan Markle regresa a la realeza deslumbrante: blazer de Hollywood vs corona real",
+          "hashtags": [
+            "MeghanBlazer",
+            "RealezaVsHollywood",
+            "ComoAsí",
+            "ComoAsi"
+          ],
+          "description": "Mala Fama desmenuza la llegada de Meghan y Harry a los Cotswolds: un blazer estructurado que grita Hollywood mientras la familia real se queda sin palabras. Contraste de lujo, hipocresía y moda en la nueva era real. Suscríbete para más chismes con humor negro.\n\n#MeghanBlazer #RealezaVsHollywood #ComoAsí #ChismeReal #HumorNegro\n\n#ComoAsi"
+        },
+        "instagram": {
+          "caption": "Meghan Markle vuelve a la realeza con un blazer que grita Hollywood y no Cotswolds. La princesa del drama aterriza en un cottage de lujo mientras predica austeridad. ¿Hipocresía o nuevo estilo real? #MeghanBlazer #RealezaVsHollywood #ComoAsí #ChismeReal #HumorNegro\n\n#ComoAsi",
+          "hashtags": [
+            "MeghanBlazer",
+            "RealezaVsHollywood",
+            "ComoAsí",
+            "ChismeReal",
+            "HumorNegro",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Crees que el blazer de Meghan puede eclipsar la corona de Carlos? Cuéntanos tu teoría más salvaje."
+        }
+      }
+    }
+  ]
+}
