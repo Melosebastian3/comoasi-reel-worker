@@ -5,6 +5,11 @@
 name: Produce daily reels
 
 on:
+  # One-off recovery approved by Sebastian 2026-10-10 ("Borrar y regenerar"): pushing
+  # ops/rerun-date.txt on this branch makes new mediodia + noche videos and posts them.
+  push:
+    branches: [ops/rerun-2026-10-10]
+    paths: [ops/rerun-date.txt]
   # Autopilot (approved by Sebastian 2026-10-09): 00:30 Buenos Aires, same-day posts.
   schedule:
     - cron: '30 3 * * *'
@@ -75,6 +80,7 @@ jobs:
       - name: Prepare Kaggle input
         run: |
           DATE="${{ inputs.date }}"
+          if [ "${{ github.event_name }}" = "push" ]; then DATE=$(tr -d '[:space:]' < ops/rerun-date.txt); fi
           if [ -z "$DATE" ] && [ "${{ github.event_name }}" = "schedule" ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
           [ -n "$DATE" ] || DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F)
           echo "RUN_DATE=$DATE" >> "$GITHUB_ENV"
@@ -86,7 +92,7 @@ jobs:
           node local/sync.js export-context bundle/context.json --date "$DATE"
           git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
           printf '{"fresh":%s,"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
-            "${{ github.event_name == 'push' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || ((github.event_name == 'push' || github.event_name == 'schedule') && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
+            "${{ github.event_name == 'push' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || (github.event_name == 'push' && '2') || (github.event_name == 'schedule' && '3') || '1' }}" "${{ inputs.slots || (github.event_name == 'push' && 'mediodia,noche') || '' }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
           cat bundle/run.json
 
       - name: Generate on Kaggle GPU
@@ -109,7 +115,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-          PUBLISH_ENABLED: ${{ github.event_name == 'schedule' && 'true' || vars.PUBLISH_ENABLED }}
+          PUBLISH_ENABLED: ${{ (github.event_name == 'schedule' || github.event_name == 'push') && 'true' || vars.PUBLISH_ENABLED }}
         run: scripts/publish-batch.sh kaggle-out/out "$RUN_DATE"
 
       - name: Keep videos as a run artifact (visible to repo readers)
