@@ -159,13 +159,56 @@ async function fetchGoogleNews(query) {
   }));
   return batches.flatMap((batch) => batch.status === "fulfilled" ? batch.value : []);
 }
+// Sebastian (2026-10-09): a wide radar, not one or two outlets. Every feed below answered from a
+// GitHub runner on 2026-10-09; a feed that stops answering just contributes nothing.
 const entertainmentFeeds = [
-  { source: "Paparazzi", url: "https://www.paparazzi.com.ar/feed/" },
-  { source: "Infobae Teleshow", url: "https://www.infobae.com/arc/outboundfeeds/rss/category/teleshow/?outputType=xml" },
-  { source: "Variety", url: "https://variety.com/feed/" },
-  { source: "Deadline", url: "https://deadline.com/feed/" },
-  { source: "TMZ", url: "https://www.tmz.com/rss.xml" }
+  { source: "Paparazzi", market: "argentina", url: "https://www.paparazzi.com.ar/feed/" },
+  { source: "Infobae Teleshow", market: "argentina", url: "https://www.infobae.com/arc/outboundfeeds/rss/category/teleshow/?outputType=xml" },
+  { source: "Clar\xEDn Espect\xE1culos", market: "argentina", url: "https://www.clarin.com/rss/espectaculos/" },
+  { source: "La Naci\xF3n Espect\xE1culos", market: "argentina", url: "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/espectaculos/?outputType=xml" },
+  { source: "TN Show", market: "argentina", url: "https://tn.com.ar/arc/outboundfeeds/rss/category/show/?outputType=xml" },
+  { source: "Exitoina", market: "argentina", url: "https://www.exitoina.com/rss" },
+  { source: "Perfil Espect\xE1culos", market: "argentina", url: "https://www.perfil.com/feed/espectaculos" },
+  { source: "Caras", market: "argentina", url: "https://caras.perfil.com/feed" },
+  { source: "\xC1mbito Espect\xE1culos", market: "argentina", url: "https://www.ambito.com/rss/pages/espectaculos.xml" },
+  { source: "Primicias Ya", market: "argentina", url: "https://www.primiciasya.com/rss/pages/home.xml" },
+  { source: "Page Six", market: "internacional", url: "https://pagesix.com/feed/" },
+  { source: "E! Online", market: "internacional", url: "https://www.eonline.com/syndication/feeds/rssfeeds/topstories.xml" },
+  { source: "Just Jared", market: "internacional", url: "https://www.justjared.com/feed/" },
+  { source: "TMZ", market: "internacional", url: "https://www.tmz.com/rss.xml" },
+  { source: "Billboard", market: "internacional", url: "https://www.billboard.com/feed/" },
+  { source: "Variety", market: "internacional", url: "https://variety.com/feed/" },
+  { source: "Infobae Entretenimiento", market: "internacional", url: "https://www.infobae.com/arc/outboundfeeds/rss/category/america/entretenimiento/?outputType=xml" },
+  { source: "Reddit popculturechat", market: "internacional", url: "https://www.reddit.com/r/popculturechat/hot/.rss" }
 ];
+// What people are searching right now; each trend carries the news items behind it.
+async function fetchGoogleTrends(geo) {
+  try {
+    const response = await fetch(`https://trends.google.com/trending/rss?geo=${geo}`, { headers: sourceHeaders, signal: AbortSignal.timeout(9e3) });
+    if (!response.ok) return [];
+    const xml = await response.text();
+    return (xml.match(/<item>[\s\S]*?<\/item>/gi) || []).flatMap((item) => {
+      const term = rssTag(item, "title");
+      const traffic = rssTag(item, "ht:approx_traffic");
+      const published = new Date(rssTag(item, "pubDate"));
+      return (item.match(/<ht:news_item>[\s\S]*?<\/ht:news_item>/gi) || []).slice(0, 2).flatMap((news) => {
+        const title = rssTag(news, "ht:news_item_title");
+        const url = rssTag(news, "ht:news_item_url");
+        if (!title || !url) return [];
+        return [{
+          title,
+          url,
+          source: rssTag(news, "ht:news_item_source") || "Google Trends",
+          publishedAt: Number.isNaN(published.getTime()) ? "" : published.toISOString(),
+          provider: "Google Trends",
+          trending: `${term} (${traffic || "+"} b\xFAsquedas en ${geo})`
+        }];
+      });
+    });
+  } catch {
+    return [];
+  }
+}
 const entertainmentDomains = [
   // Argentina
   "paparazzi.com.ar",
@@ -211,7 +254,7 @@ async function fetchEntertainmentFeed(feed) {
     if (!response.ok) return [];
     const xml = await response.text();
     const items = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
-    return items.slice(0, 18).flatMap((item) => {
+    return items.slice(0, 15).flatMap((item) => {
       const title = rssTag(item, "title");
       const articleUrl = rssTag(item, "link") || rssTag(item, "guid");
       const published = rssTag(item, "pubDate") || rssTag(item, "published") || rssTag(item, "updated");
@@ -230,9 +273,27 @@ async function fetchEntertainmentFeed(feed) {
   }
 }
 async function fetchEntertainmentFeeds(market = "random") {
-  const selectedFeeds = market === "argentina" ? entertainmentFeeds.filter((feed) => ["Paparazzi", "Infobae Teleshow"].includes(feed.source)) : entertainmentFeeds;
-  const batches = await Promise.allSettled(selectedFeeds.map(fetchEntertainmentFeed));
+  const selectedFeeds = ["argentina", "internacional"].includes(market) ? entertainmentFeeds.filter((feed) => feed.market === market) : entertainmentFeeds;
+  const trendGeos = market === "argentina" ? ["AR"] : market === "internacional" ? ["US", "MX"] : ["AR", "US"];
+  const batches = await Promise.allSettled([...selectedFeeds.map(fetchEntertainmentFeed), ...trendGeos.map(fetchGoogleTrends)]);
   return batches.flatMap((batch) => batch.status === "fulfilled" ? batch.value : []);
+}
+// Buzz: how many different outlets carry the same story (shared proper names in the headline).
+// A story five outlets are covering is more viral than one a single site posted.
+const buzzStopwords = new Set(["argentina", "buenos", "aires", "estados", "unidos", "netflix", "video", "fotos", "mundial", "teleshow", "streaming", "instagram", "tiktok", "youtube", "after", "before", "their", "which", "where", "there", "about"]);
+function headlineNames(title) {
+  return new Set((asString(title).normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/\b[A-Z][a-zA-Z]{4,}\b/g) || []).map((word) => word.toLowerCase()).filter((word) => !buzzStopwords.has(word)));
+}
+function withBuzz(signals) {
+  const names = signals.map((signal) => headlineNames(signal.title));
+  return signals.map((signal, index) => {
+    const outlets = new Set();
+    signals.forEach((other, otherIndex) => {
+      if (otherIndex === index || other.source === signal.source) return;
+      for (const name of names[index]) if (names[otherIndex].has(name)) { outlets.add(other.source); break; }
+    });
+    return { ...signal, buzz: outlets.size + 1 };
+  });
 }
 async function fetchCurrentSignals(category, topic = "", market = "random") {
   const compactTopic = topic.split(/\s+/).filter((word) => word.length > 2).slice(0, 7).join(" ");
@@ -255,19 +316,29 @@ async function fetchCurrentSignals(category, topic = "", market = "random") {
   const normalize = (signals, maxAgeDays) => {
     const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1e3;
     const seen = /* @__PURE__ */ new Set();
-    return signals.filter((signal) => {
+    const fresh = signals.filter((signal) => {
       const normalized2 = signal.title.toLowerCase().replace(/[^a-z0-9áéíóúñü]+/gi, " ").trim();
       if (!normalized2 || seen.has(normalized2)) return false;
       const date = signal.publishedAt ? new Date(signal.publishedAt).getTime() : Date.now();
       if (!Number.isNaN(date) && date < cutoff) return false;
       seen.add(normalized2);
       return true;
-    }).sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || "")).slice(0, 40);
+    });
+    // Most-covered and trending stories first, at most 5 per outlet so no single site fills the radar.
+    const perSource = new Map();
+    return withBuzz(fresh)
+      .sort((a, b) => b.buzz + (b.trending ? 2 : 0) - (a.buzz + (a.trending ? 2 : 0)) || (b.publishedAt || "").localeCompare(a.publishedAt || ""))
+      .filter((signal) => {
+        const count = perSource.get(signal.source) || 0;
+        perSource.set(signal.source, count + 1);
+        return count < 5;
+      })
+      .slice(0, 45);
   };
   const [generalSignals, prioritySignals, directFeedSignals] = await Promise.all([
     collect(specificQueries),
     collectPriority(priorityQueries),
-    fetchEntertainmentFeeds(argentinaFocused ? "argentina" : "random")
+    fetchEntertainmentFeeds(market)
   ]);
   // Gossip has to be fresh: by default only the last two days, widened by a day when too few.
   const maxAgeDays = Number(process.env.SIGNAL_MAX_AGE_DAYS || 2);
@@ -282,7 +353,7 @@ async function scrapeTrendSources(signals) {
   const selected = signals.slice(0, 6);
   const scraped = await Promise.allSettled(selected.map(async (signal) => {
     const page = await ai.scrape({ url: signal.url });
-    return { ...signal, text: page.status < 400 ? page.text.slice(0, 4500) : "" };
+    return { ...signal, text: page.status < 400 ? page.text.slice(0, Number(process.env.SOURCE_TEXT_CHARS || 4500)) : "" };
   }));
   return scraped.flatMap((item) => item.status === "fulfilled" ? [item.value] : []);
 }
@@ -308,22 +379,22 @@ const routes = {
     const explicitMarket = asString(b.market).toLowerCase();
     const prefixedMarket = asString(marketCategoryMatch?.[1]).toLowerCase();
     const market = ["argentina", "random", "internacional"].includes(explicitMarket) ? explicitMarket : ["argentina", "internacional"].includes(prefixedMarket) ? prefixedMarket : "random";
-    const memory = asArray(b.memory).slice(0, 60);
+    const memory = asArray(b.memory).slice(0, Number(process.env.TOPIC_MEMORY_ITEMS || 60));
     const learning = asArray(b.learning).slice(0, 40);
     const liveSignals = await fetchCurrentSignals(category, "", market);
     if (liveSignals.length === 0) return error("current_sources_unavailable", 503);
     const currentDate = (/* @__PURE__ */ new Date()).toISOString();
     const marketInstruction = market === "internacional" ? "MERCADO INTERNACIONAL OBLIGATORIO: el protagonista debe ser una celebridad internacional (Hollywood, m\xFAsica global, K-pop, realeza, deporte mundial o estrellas latinas de otros pa\xEDses) reconocible para el p\xFAblico latinoamericano; NO puede ser argentino ni la historia puede ser de la far\xE1ndula argentina. Pol\xEDtica y noticias duras siguen prohibidas. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s." : market === "argentina" ? "MERCADO ARGENTINA OBLIGATORIO: el tema debe involucrar a una celebridad de reconocimiento transversal para p\xFAblico general argentino o un evento de entretenimiento/cultura pop con v\xEDnculo directo, actual y verificable con Argentina. Prioriz\xE1 se\xF1ales de medios argentinos. No alcanza con que una noticia internacional haya sido republicada en Argentina. Pol\xEDtica y noticias duras siguen prohibidas. Busc\xE1 primero protagonistas de nivel masivo; el piso operativo de recognitionScore es 88, pero la preferencia editorial es 92 o m\xE1s." : "MERCADO RANDOM/GLOBAL: eleg\xED el mejor tema actual sin restricci\xF3n geogr\xE1fica, priorizando reconocimiento masivo latinoamericano o global. recognitionScore m\xEDnimo 90 y preferencia editorial 93 o m\xE1s.";
-    const viralCalibration = "CALIBRACI\xD3N VIRAL: el patr\xF3n de alto rendimiento que queremos repetir NO es repetir a Wanda Nara ni un tema concreto; es repetir la mec\xE1nica que funcion\xF3: famoso que se reconoce al instante + conflicto que se entiende en una sola frase + tensi\xF3n de romance, ego, papel\xF3n o contradicci\xF3n p\xFAblica + una consecuencia concreta + im\xE1genes f\xE1ciles de exagerar. Si dos candidatos est\xE1n parejos, gana el que necesita menos contexto, genera una reacci\xF3n emocional m\xE1s r\xE1pida y permite un t\xEDtulo que cualquiera entiende en menos de dos segundos. Penaliz\xE1 fuerte historias de nicho, conflictos burocr\xE1ticos, contexto largo, protagonistas secundarios y temas que solo son interesantes para fans. La memoria editorial sigue mandando: no repitas protagonista, evento ni \xE1ngulo reciente cuando exista una alternativa fuerte.";
+    const viralCalibration = "RADAR VIRAL: cada se\xF1al trae buzz (cu\xE1ntos medios distintos cubren esa misma historia) y algunas trending (b\xFAsquedas en Google ahora). Prioriz\xE1 la historia con m\xE1s buzz o tendencia que encaje en chisme con humor negro; una nota que public\xF3 un solo sitio pierde contra la que est\xE1 en todos lados. CALIBRACI\xD3N VIRAL: el patr\xF3n de alto rendimiento que queremos repetir NO es repetir a Wanda Nara ni un tema concreto; es repetir la mec\xE1nica que funcion\xF3: famoso que se reconoce al instante + conflicto que se entiende en una sola frase + tensi\xF3n de romance, ego, papel\xF3n o contradicci\xF3n p\xFAblica + una consecuencia concreta + im\xE1genes f\xE1ciles de exagerar. Si dos candidatos est\xE1n parejos, gana el que necesita menos contexto, genera una reacci\xF3n emocional m\xE1s r\xE1pida y permite un t\xEDtulo que cualquiera entiende en menos de dos segundos. Penaliz\xE1 fuerte historias de nicho, conflictos burocr\xE1ticos, contexto largo, protagonistas secundarios y temas que solo son interesantes para fans. La memoria editorial sigue mandando: no repitas protagonista, evento ni \xE1ngulo reciente cuando exista una alternativa fuerte.";
     // Local-model guard: topics rejected as duplicates in this job. Their protagonists' headlines are
     // dropped so a smaller model cannot keep picking the same story.
     const avoid = asArray(b.avoid);
     const plainTokens = (value) => asString(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((token) => token.length >= 4);
     const avoidTokens = new Set(avoid.flatMap((item) => plainTokens(item?.protagonist)));
     const freshSignals = liveSignals.filter((signal) => !plainTokens(`${signal.title} ${signal.text || ""}`).some((token) => avoidTokens.has(token)));
-    const availableSignals = (freshSignals.length >= 5 ? freshSignals : liveSignals).slice(0, 28);
+    const availableSignals = (freshSignals.length >= 5 ? freshSignals : liveSignals).slice(0, 40);
     // Sebastian (2026-10-09): dark humor can be strong, but abuse is off limits.
-    const hardLimits = "\nL\xCDMITES DUROS: el humor negro puede ser fuerte, pero nunca elijas historias de abuso sexual, violencia de g\xE9nero, maltrato, menores en riesgo, muertes recientes ni enfermedades graves como tema.";
+    const hardLimits = "\nL\xCDMITES DUROS: el humor negro puede ser fuerte, pero nunca elijas historias de abuso sexual, acoso u hostigamiento (ni denuncias de acoso), violencia de g\xE9nero, maltrato, menores en riesgo, muertes recientes ni enfermedades graves como tema.";
     const avoidInstruction = hardLimits + (avoid.length ? `\nPROHIBIDO repetir estos temas ya hechos ni a sus protagonistas: ${JSON.stringify(avoid.map((item) => ({ topic: item?.topic, protagonist: item?.protagonist })))}` : "");
     const prompt = `Fecha/hora actual UTC: ${currentDate}. Categor\xEDa solicitada: ${category}. Mercado editorial: ${market}. ${marketInstruction} ${viralCalibration}
 SE\xD1ALES RECIENTES REALES (\xEDndice \u2192 titular/fuente/fecha): ${JSON.stringify(availableSignals.map((signal, index) => ({ index, ...signal })))}
@@ -385,12 +456,13 @@ CORRECCI\xD3N OBLIGATORIA: la elecci\xF3n anterior no aparec\xEDa en los titular
     const citedSignals = asArray(selected.sourceIndexes).map((value) => availableSignals[Math.trunc(Number(value))]).filter(Boolean);
     const claimCheck = await generateStructured("Eres un verificador de datos estricto. Respond\xE9s solo con lo que dicen los textos dados.", `TEMA PROPUESTO: ${JSON.stringify({ topic: selected.topic, title: selected.title, angle: selected.angle })}
 FUENTES CITADAS: ${JSON.stringify(citedSignals.map((signal) => ({ title: signal.title, text: asString(signal.text).slice(0, 1200) })))}
-\xBFLas fuentes dicen expl\xEDcitamente que ocurri\xF3 el conflicto o hecho central del tema (no solo que aparece la persona)? Si el tema agrega una pelea, ruptura, acusaci\xF3n, socio, pareja o consecuencia que las fuentes no mencionan, respond\xE9 supported=false.`, {
+\xBFLas fuentes cuentan el mismo hecho central que el tema, aunque sea con otras palabras? Respond\xE9 supported=true si lo cuentan. Respond\xE9 supported=false SOLO si el tema afirma un hecho que las fuentes no dicen (por ejemplo una pelea, ruptura, acusaci\xF3n, socio o pareja que no aparece). Que la nota no tenga esc\xE1ndalo no es motivo para rechazar.
+Adem\xE1s, isGossip=true solo si es chisme de famosos que la gente comenta: romance, ruptura, infidelidad, pelea personal, papel\xF3n, ego o pol\xE9mica de cultura pop. isGossip=false para pases, contratos o resultados deportivos, causas judiciales de negocios o tierras, pol\xEDtica, econom\xEDa o lanzamientos sin conflicto.`, {
       type: "object",
-      properties: { supported: { type: "boolean" }, reason: { type: "string" } },
-      required: ["supported", "reason"]
+      properties: { supported: { type: "boolean" }, isGossip: { type: "boolean" }, reason: { type: "string" } },
+      required: ["supported", "isGossip", "reason"]
     }, 400).catch(() => ({ supported: false, reason: "claim_check_failed" }));
-    if (claimCheck.supported !== true) {
+    if (claimCheck.supported !== true || claimCheck.isGossip === false) {
       console.warn(`[como-asi] topic claim not supported by sources: ${asString(selected.topic)} (${asString(claimCheck.reason)})`);
       return error(`topic_not_grounded_in_sources|${JSON.stringify({ topic: asString(selected.topic), protagonist: asString(selected.protagonist) })}`, 503);
     }
@@ -421,7 +493,7 @@ FUENTES CITADAS: ${JSON.stringify(citedSignals.map((signal) => ({ title: signal.
       text: scrapedByUrl.get(signal.url) || "",
       origin: inheritedSources.some((source) => source.url === signal.url) ? "selector" : "supplemental_search"
     }));
-    const prompt = `Fecha/hora actual UTC: ${(/* @__PURE__ */ new Date()).toISOString()}. Investig\xE1 de forma conservadora este tema para un microdrama de celebridades (no un noticiero): ${topic}. \xC1ngulo: ${angle}. Protagonista: ${protagonist}. Evento clave: ${eventKey}. Pregunta narrativa: ${narrativeQuestion}. FUENTES DISPONIBLES: ${JSON.stringify(sourcePackets)}. Las fuentes marcadas como selector ya justificaron la elecci\xF3n del tema y deben conservarse como evidencia primaria; la b\xFAsqueda suplementaria solo ampl\xEDa cobertura. Produc\xED un brief factual usando \xFAnicamente informaci\xF3n respaldada por estos paquetes y sus titulares. Separ\xE1 hechos de contexto incierto. No inventes citas, fechas, delitos, relaciones personales ni intenciones. Si un dato no aparece con respaldo suficiente, excluilo o marc\xE1lo como incierto. No confundas rumor con hecho. Inclu\xED afirmaciones seguras, riesgos de precisi\xF3n, qu\xE9 fuente respalda el \xE1ngulo y qu\xE9 afirmaciones todav\xEDa requieren verificaci\xF3n adicional antes de publicar.`;
+    const prompt = `Fecha/hora actual UTC: ${(/* @__PURE__ */ new Date()).toISOString()}. Investig\xE1 de forma conservadora este tema para un microdrama de celebridades (no un noticiero): ${topic}. \xC1ngulo: ${angle}. Protagonista: ${protagonist}. Evento clave: ${eventKey}. Pregunta narrativa: ${narrativeQuestion}. FUENTES DISPONIBLES: ${JSON.stringify(sourcePackets)}. Las fuentes marcadas como selector ya justificaron la elecci\xF3n del tema y deben conservarse como evidencia primaria; la b\xFAsqueda suplementaria solo ampl\xEDa cobertura. Produc\xED un brief factual usando \xFAnicamente informaci\xF3n respaldada por estos paquetes y sus titulares. Separ\xE1 hechos de contexto incierto. No inventes citas, fechas, delitos, relaciones personales ni intenciones. Si un dato no aparece con respaldo suficiente, excluilo o marc\xE1lo como incierto. No confundas rumor con hecho. Para que la historia se entienda sin contexto previo, verifiedFacts debe traer los datos concretos de las notas: qui\xE9nes son las personas y su v\xEDnculo, qu\xE9 pas\xF3 exactamente, citas textuales relevantes, cu\xE1ndo y d\xF3nde, y qu\xE9 consecuencia tuvo; nunca repitas el titular con otras palabras. Inclu\xED afirmaciones seguras, riesgos de precisi\xF3n, qu\xE9 fuente respalda el \xE1ngulo y qu\xE9 afirmaciones todav\xEDa requieren verificaci\xF3n adicional antes de publicar.`;
     const schema = {
       type: "object",
       properties: {
@@ -456,10 +528,15 @@ FUENTES CITADAS: ${JSON.stringify(citedSignals.map((signal) => ({ title: signal.
     const languageRepair = strictSpanish ? "REPARACI\xD3N DE IDIOMA: el intento anterior fue rechazado. Reescribe desde cero toda narraci\xF3n, t\xEDtulo, gancho, remates y prop\xF3sito de escena en espa\xF1ol latino neutro. No uses regionalismos, voseo, palabras ni construcciones inglesas salvo nombres propios inevitables. Los visualPrompt s\xED pueden estar en ingl\xE9s. " : "";
     // Local-model guard: open models miss the runtime window the validator enforces, so state it
     // up front and repeat the exact reason when a previous attempt was rejected.
+    // Sebastian (2026-10-09): the first posted story repeated its headline and had no context.
+    const contextRule = "CONTEXTO OBLIGATORIO: quien llega sin saber nada tiene que entender la historia. En las escenas 2-4 dec\xED qui\xE9n es cada persona y su v\xEDnculo (por ejemplo, que es su esposo, su ex o su socio) y qu\xE9 pas\xF3 exactamente, con el dato concreto del brief: qu\xE9 dijo, qu\xE9 hizo, cu\xE1ndo y por qu\xE9 importa. Cada escena aporta un dato o un remate NUEVO; prohibido repetir el mismo hecho con otras palabras. Si el brief trae una cita textual, usala. " +
+      // Sebastian (2026-10-09): tell the gossip, do not read the article. Comment it, draw
+      // conclusions and stir the scandal, as if telling it to friends.
+      "ESTILO CHISME: Mala Fama no lee la nota, CUENTA el chisme y lo comenta como quien arma esc\xE1ndalo: interpreta, sospecha, compara con lo que el famoso dijo o hizo antes, saca conclusiones filosas y exagera las consecuencias para hacer re\xEDr, siempre con humor negro filoso: remates crueles con el ego, la pose y la hipocres\xEDa, nunca chistes blandos. Los hechos salen del brief; las conclusiones, sospechas y exageraciones van como opini\xF3n o burla de Mala Fama (\u201Cpara m\xED\u201D, \u201Cqu\xE9 casualidad\u201D, \u201Cy ahora viene lo bueno\u201D, \u201Cdigamos la verdad\u201D), nunca como un hecho nuevo inventado: no inventes tuits, declaraciones, gestos ni reacciones. Los hijos o menores nunca son blanco de chistes. Arco: gancho \u2192 qui\xE9n es qui\xE9n \u2192 qu\xE9 pas\xF3 \u2192 lo que nadie dice (la lectura de Mala Fama) \u2192 escalada \u2192 veredicto. ";
     const lengthRule = "LONGITUD OBLIGATORIA: entre 150 y 240 palabras sumando las 16 narraciones (de 9 a 15 palabras cada una), la escena 1 con menos de 20 palabras, la 16 cerrando con afirmaci\xF3n (sin pregunta) y como m\xE1ximo 2 preguntas en todo el guion. ";
     const repairNote = asString(b.repairNote) ? `CORRECCI\xD3N DEL INTENTO ANTERIOR: ${asString(b.repairNote)} ` : "";
-    const prompt = `${repairNote}${lengthRule}${languageRepair}Tema: ${topic}. Protagonista p\xFAblico reconocido: ${protagonist}. T\xEDtulo sugerido: ${title}. Hook sugerido: ${hook}. Brief factual: ${JSON.stringify(research)}.
-IDENTIDAD OBLIGATORIA: MALA FAMA es un presentador masculino, un diablo animado adulto y elegante; nunca una mujer, una amiga chismosa ni una conversaci\xF3n entre personas. IDIOMA OBLIGATORIO: devuelve title, coverDeck, hook, closingLine y las 16 narraciones exclusivamente en espa\xF1ol latino neutro. Traduce cualquier frase que haya quedado en ingl\xE9s. Los visualPrompt pueden escribirse en ingl\xE9s si mejora el resultado visual. Escribe un Reel de 55-70 segundos y EXACTAMENTE 16 escenas para retenci\xF3n m\xE1xima. La duraci\xF3n la decide la historia: puede superar un minuto cuando el drama necesita respirar, pero termina apenas pagues el gancho y nunca agregues relleno. NIVEL DE DRAMA: 10/10. NIVEL DE CHISME: 10/10. La voz pertenece a Mala Fama: presentador masculino de registro grave, oscuro y dominante. Habla como fiscal del inframundo y maestro de ceremonias, no como amiga chismosa. No saluda, no coquetea y no conversa con nadie: abre el expediente, exhibe la contradicci\xF3n y dicta sentencia. Usa silencios tensos, falsa solemnidad, desprecio divertido y remates secos. Prohibidas las muletillas \u201Cmi amor\u201D, \u201Camiga\u201D, \u201Creina\u201D, \u201Cbeb\xE9\u201D, \u201Cesc\xFAchame\u201D, \u201Cte cuento\u201D y cualquier frase que suene a dos amigas hablando. No aceleres ni atropelles las palabras. No uses tono de documental, noticiero, resumen ni art\xEDculo le\xEDdo. ESTRUCTURA DE MICRODRAMA: abre con una acusaci\xF3n factual o contradicci\xF3n imposible de ignorar; crea una deuda de curiosidad antes del segundo 4; entrega una revelaci\xF3n concreta cada 7-10 segundos; reserva el dato que cambia la lectura para el \xFAltimo tercio; cierra con un remate que haga volver mentalmente al gancho. Objetivo total: 125-150 palabras para una locuci\xF3n masculina lenta, oscura, expresiva y con silencios. Cada escena debe tener normalmente 3-7 palabras habladas; divide cualquier frase que supere 10 palabras. El title debe incluir al famoso y no superar 42 caracteres; coverDeck debe tener 2-5 palabras. ESCENA 1: gancho autosuficiente de 7-12 palabras con nombre del famoso + conflicto concreto + consecuencia inc\xF3moda; debe entenderse aunque el espectador llegue sin contexto. Sin saludo, fecha, introducci\xF3n, preguntas vagas ni frases como \u201Cno vas a creer\u201D. ESCENAS 2-3: entrega inmediatamente el primer hecho verificable y explica qu\xE9 est\xE1 en juego; no desperdicies una escena prometiendo que luego contar\xE1s algo. ESCENAS 4-6: revela qui\xE9n gana, qui\xE9n pierde o qu\xE9 est\xE1 realmente en juego, solo si el brief lo respalda. ESCENAS 7-11: intensifica el detalle m\xE1s inc\xF3modo, absurdo o hip\xF3crita; alterna dato verificado + reacci\xF3n filosa + dato nuevo. ESCENAS 12-14: introduce el giro, contraataque o consecuencia que cambie c\xF3mo se entiende todo. ESCENAS 15-16: la escena 15 entrega el \xFAltimo hecho o consecuencia que faltaba; la escena 16 dicta un veredicto breve, contundente y gracioso que paga el gancho. Est\xE1 prohibido terminar con pregunta, suspenso abierto, \u201C\xBFqu\xE9 opinas?\u201D, moraleja o informaci\xF3n inconclusa. closingLine debe ser exactamente la narraci\xF3n de la escena 16 y tener entre 6 y 12 palabras. No bajes la tensi\xF3n durante dos escenas consecutivas. Cada l\xEDnea debe soltar un dato fuerte, juzgar una contradicci\xF3n, aumentar lo que est\xE1 en juego o rematar con veneno. Si una l\xEDnea solo explica contexto como documental, reescr\xEDbela. La narradora toma partido editorial contra la hipocres\xEDa, el ego o la decisi\xF3n absurda, sin inventar acusaciones. Usa lenguaje hablado latino neutro, cambios de intenci\xF3n y frases que una persona realmente dir\xEDa. Puedes usar con moderaci\xF3n \u201Cs\xED, escuchaste bien\u201D, \u201Cpero espera\u201D, \u201Cporque claro\u201D, \u201Cgiro total\u201D o \u201Chasta aqu\xED todo normal\u201D, sin repetir f\xF3rmulas. Nunca uses \u201Cs\xED, le\xEDste bien\u201D porque la audiencia est\xE1 escuchando. PROHIBIDO: regionalismos, voseo, \u201Cla historia comienza\u201D, \u201Cpara entender esto\u201D, \u201Cen este contexto\u201D, \u201Ccabe destacar\u201D, \u201Cposteriormente\u201D, \u201Csin embargo\u201D, moralejas, resumen escolar, tono solemne o p\xE1rrafos largos. Incluye 5-7 micro-remates o contrastes, siempre pegados a un dato nuevo; elimina reacciones vac\xEDas que no hagan avanzar la historia. A\xF1ade 4-6 golpes de lenguaje picante, neutral y variado cuando el tema lo permita; la palabrota debe caer como remate, no como muletilla. Evita frases tibias como \u201Cesto gener\xF3 debate\u201D, \u201Clas opiniones est\xE1n divididas\u201D o \u201Csolo el tiempo dir\xE1\u201D: reempl\xE1zalas por la contradicci\xF3n concreta demostrada por el brief. Asigna a cada escena un delivery entre golpe, veneno, suspenso, incredula o remate. Usa solamente verifiedFacts como afirmaciones; uncertainClaims solo pueden aparecer como duda expl\xEDcita. DIRECCI\xD3N VISUAL \u201CFLASH CUT\u201D: cada escena debe parecer una p\xE1gina arrancada de una revista de chismes de lujo intervenida por un artista editorial: retrato ilustrado 2D de t\xE9cnica mixta, recortes de papel, tinta expresiva, tramas halftone, grano de fotocopia, sombras duras y destellos de paparazzi. Paleta de marca limitada: negro tinta, marfil, verde \xE1cido, magenta el\xE9ctrico y azul cobalto. Es adulta, filosa, imperfecta y editorial; nunca animaci\xF3n familiar, mu\xF1eco 3D, chibi, rostro pl\xE1stico ni p\xF3ster gen\xE9rico. El Reel alterna tres capas visuales exactas: MALA FAMA aparece en las escenas 1, 5, 9, 13 y 16; el protagonista famoso aparece en las escenas 2, 4, 7, 10, 12 y 15; las escenas 3, 6, 8, 11 y 14 son cortes simb\xF3licos sin rostros. Cada visualPrompt del presentador debe comenzar literalmente con \u201CHOST_SCENE:\u201D para activar su identidad fija. Cada HOST_SCENE representa siempre al mismo diablo animado masculino adulto: rostro anguloso color borgo\xF1a oscuro, dos cuernos negros pulidos curvados hacia atr\xE1s, ojos verde \xE1cido, cabello negro peinado hacia atr\xE1s con una mecha blanca, barba puntiaguda corta, traje negro entallado, camisa magenta, guantes negros, pa\xF1uelo verde \xE1cido, cola fina terminada en punta y micr\xF3fono de metal ennegrecido. Sonrisa lateral de verdugo, ceja levantada y presencia dominante. Est\xE9tica de animaci\xF3n editorial adulta 2D, nunca demonio terror\xEDfico realista, personaje infantil, mujer, humano corriente, mu\xF1eco 3D ni copia de una franquicia. No cambies rostro, cuernos, ojos, cabello, vestuario, accesorios ni colores entre escenas. Antes de escribir los visualPrompt, define internamente un ANCLA DE CONTINUIDAD con tres rasgos p\xFAblicos estables del famoso \u2014estructura facial, peinado/color de cabello y estilo caracter\xEDstico\u2014 y repite literalmente esa misma descripci\xF3n en cada escena donde aparezca. No cambies edad aparente, cabello, facciones ni identidad entre escenas salvo que el hecho verificado lo exija. Alterna primer\xEDsimo primer plano recortado, \xE1ngulo holand\xE9s, plano medio asim\xE9trico, plano amplio teatral, cenital de objetos, silueta a contraluz y macro simb\xF3lico. Nunca uses dos rostros centrados ni el mismo encuadre consecutivamente. Las escenas 1, 4, 8, 12 y 16 son interrupciones visuales radicales con cambio de escala, composici\xF3n o color. Cuando aparezca el famoso, repite su nombre exacto y el ancla de continuidad; debe ser reconocible, ilustrado y nunca fotorealista. Si interviene una persona real, nunca pidas desnudez, lencer\xEDa, ropa interior, pose sexualizada ni una situaci\xF3n \xEDntima o comprometedora; usa objetos, sets publicitarios, c\xE1maras, telas o met\xE1foras visuales. Se permite collage f\xEDsico/editorial dentro de una \xFAnica composici\xF3n, pero nunca cuadr\xEDcula, split screen, captura de red social, texto legible, letras, logos, marcas, carteles, captions ni UI. El campo narration debe ser exactamente la concatenaci\xF3n, en orden, de las 16 narraciones de escena. No inventes nada fuera del brief.`;
+    const prompt = `${repairNote}${contextRule}${lengthRule}${languageRepair}Tema: ${topic}. Protagonista p\xFAblico reconocido: ${protagonist}. T\xEDtulo sugerido: ${title}. Hook sugerido: ${hook}. Brief factual: ${JSON.stringify(research)}.
+IDENTIDAD OBLIGATORIA: MALA FAMA es un presentador masculino, un diablo animado adulto y elegante; nunca una mujer, una amiga chismosa ni una conversaci\xF3n entre personas. IDIOMA OBLIGATORIO: devuelve title, coverDeck, hook, closingLine y las 16 narraciones exclusivamente en espa\xF1ol latino neutro. Traduce cualquier frase que haya quedado en ingl\xE9s. Los visualPrompt pueden escribirse en ingl\xE9s si mejora el resultado visual. Escribe un Reel de 55-70 segundos y EXACTAMENTE 16 escenas para retenci\xF3n m\xE1xima. La duraci\xF3n la decide la historia: puede superar un minuto cuando el drama necesita respirar, pero termina apenas pagues el gancho y nunca agregues relleno. NIVEL DE DRAMA: 10/10. NIVEL DE CHISME: 10/10. La voz pertenece a Mala Fama: presentador masculino de registro grave, oscuro y dominante. Habla como fiscal del inframundo y maestro de ceremonias, no como amiga chismosa. No saluda, no coquetea y no conversa con nadie: abre el expediente, exhibe la contradicci\xF3n y dicta sentencia. Usa silencios tensos, falsa solemnidad, desprecio divertido y remates secos. Prohibidas las muletillas \u201Cmi amor\u201D, \u201Camiga\u201D, \u201Creina\u201D, \u201Cbeb\xE9\u201D, \u201Cesc\xFAchame\u201D, \u201Cte cuento\u201D y cualquier frase que suene a dos amigas hablando. No aceleres ni atropelles las palabras. No uses tono de documental, noticiero, resumen ni art\xEDculo le\xEDdo. ESTRUCTURA DE MICRODRAMA: abre con una acusaci\xF3n factual o contradicci\xF3n imposible de ignorar; crea una deuda de curiosidad antes del segundo 4; entrega una revelaci\xF3n concreta cada 7-10 segundos; reserva el dato que cambia la lectura para el \xFAltimo tercio; cierra con un remate que haga volver mentalmente al gancho. Objetivo total: 125-150 palabras para una locuci\xF3n masculina lenta, oscura, expresiva y con silencios. Cada escena debe tener normalmente 3-7 palabras habladas; divide cualquier frase que supere 10 palabras. El title debe incluir al famoso y no superar 42 caracteres; coverDeck debe tener 2-5 palabras. ESCENA 1: gancho autosuficiente de 7-12 palabras con nombre del famoso + conflicto concreto + consecuencia inc\xF3moda; debe entenderse aunque el espectador llegue sin contexto. Sin saludo, fecha, introducci\xF3n, preguntas vagas ni frases como \u201Cno vas a creer\u201D. ESCENAS 2-3: entrega inmediatamente el primer hecho verificable y explica qu\xE9 est\xE1 en juego; no desperdicies una escena prometiendo que luego contar\xE1s algo. ESCENAS 4-6: revela qui\xE9n gana, qui\xE9n pierde o qu\xE9 est\xE1 realmente en juego, solo si el brief lo respalda. ESCENAS 7-11: intensifica el detalle m\xE1s inc\xF3modo, absurdo o hip\xF3crita; alterna dato verificado + reacci\xF3n filosa + dato nuevo. ESCENAS 12-14: introduce el giro, contraataque o consecuencia que cambie c\xF3mo se entiende todo. ESCENAS 15-16: la escena 15 entrega el \xFAltimo hecho o consecuencia que faltaba; la escena 16 dicta un veredicto breve, contundente y gracioso que paga el gancho. Est\xE1 prohibido terminar con pregunta, suspenso abierto, \u201C\xBFqu\xE9 opinas?\u201D, moraleja o informaci\xF3n inconclusa. closingLine debe ser exactamente la narraci\xF3n de la escena 16 y tener entre 6 y 12 palabras. No bajes la tensi\xF3n durante dos escenas consecutivas. Cada l\xEDnea debe soltar un dato fuerte, juzgar una contradicci\xF3n, aumentar lo que est\xE1 en juego o rematar con veneno. Si una l\xEDnea solo explica contexto como documental, reescr\xEDbela. La narradora toma partido editorial contra la hipocres\xEDa, el ego o la decisi\xF3n absurda, sin inventar acusaciones. Usa lenguaje hablado latino neutro, cambios de intenci\xF3n y frases que una persona realmente dir\xEDa. Puedes usar con moderaci\xF3n \u201Cs\xED, escuchaste bien\u201D, \u201Cpero espera\u201D, \u201Cporque claro\u201D, \u201Cgiro total\u201D o \u201Chasta aqu\xED todo normal\u201D, sin repetir f\xF3rmulas. Nunca uses \u201Cs\xED, le\xEDste bien\u201D porque la audiencia est\xE1 escuchando. PROHIBIDO: regionalismos, voseo, \u201Cla historia comienza\u201D, \u201Cpara entender esto\u201D, \u201Cen este contexto\u201D, \u201Ccabe destacar\u201D, \u201Cposteriormente\u201D, \u201Csin embargo\u201D, moralejas, resumen escolar, tono solemne o p\xE1rrafos largos. Incluye 5-7 micro-remates o contrastes, siempre pegados a un dato nuevo; elimina reacciones vac\xEDas que no hagan avanzar la historia. A\xF1ade 4-6 golpes de lenguaje picante, neutral y variado cuando el tema lo permita; la palabrota debe caer como remate, no como muletilla. Evita frases tibias como \u201Cesto gener\xF3 debate\u201D, \u201Clas opiniones est\xE1n divididas\u201D o \u201Csolo el tiempo dir\xE1\u201D: reempl\xE1zalas por la contradicci\xF3n concreta demostrada por el brief. Asigna a cada escena un delivery entre golpe, veneno, suspenso, incredula o remate. Usa solamente verifiedFacts como afirmaciones de hecho; uncertainClaims solo pueden aparecer como duda expl\xEDcita. Las opiniones, conclusiones y burlas de Mala Fama est\xE1n permitidas y son bienvenidas mientras suenen a opini\xF3n. DIRECCI\xD3N VISUAL \u201CFLASH CUT\u201D: cada escena debe parecer una p\xE1gina arrancada de una revista de chismes de lujo intervenida por un artista editorial: retrato ilustrado 2D de t\xE9cnica mixta, recortes de papel, tinta expresiva, tramas halftone, grano de fotocopia, sombras duras y destellos de paparazzi. Paleta de marca limitada: negro tinta, marfil, verde \xE1cido, magenta el\xE9ctrico y azul cobalto. Es adulta, filosa, imperfecta y editorial; nunca animaci\xF3n familiar, mu\xF1eco 3D, chibi, rostro pl\xE1stico ni p\xF3ster gen\xE9rico. El Reel alterna tres capas visuales exactas: MALA FAMA aparece en las escenas 1, 5, 9, 13 y 16; el protagonista famoso aparece en las escenas 2, 4, 7, 10, 12 y 15; las escenas 3, 6, 8, 11 y 14 son cortes simb\xF3licos sin rostros. Cada visualPrompt del presentador debe comenzar literalmente con \u201CHOST_SCENE:\u201D para activar su identidad fija. Cada HOST_SCENE representa siempre al mismo diablo animado masculino adulto: rostro anguloso color borgo\xF1a oscuro, dos cuernos negros pulidos curvados hacia atr\xE1s, ojos verde \xE1cido, cabello negro peinado hacia atr\xE1s con una mecha blanca, barba puntiaguda corta, traje negro entallado, camisa magenta, guantes negros, pa\xF1uelo verde \xE1cido, cola fina terminada en punta y micr\xF3fono de metal ennegrecido. Sonrisa lateral de verdugo, ceja levantada y presencia dominante. Est\xE9tica de animaci\xF3n editorial adulta 2D, nunca demonio terror\xEDfico realista, personaje infantil, mujer, humano corriente, mu\xF1eco 3D ni copia de una franquicia. No cambies rostro, cuernos, ojos, cabello, vestuario, accesorios ni colores entre escenas. Antes de escribir los visualPrompt, define internamente un ANCLA DE CONTINUIDAD con tres rasgos p\xFAblicos estables del famoso \u2014estructura facial, peinado/color de cabello y estilo caracter\xEDstico\u2014 y repite literalmente esa misma descripci\xF3n en cada escena donde aparezca. No cambies edad aparente, cabello, facciones ni identidad entre escenas salvo que el hecho verificado lo exija. Alterna primer\xEDsimo primer plano recortado, \xE1ngulo holand\xE9s, plano medio asim\xE9trico, plano amplio teatral, cenital de objetos, silueta a contraluz y macro simb\xF3lico. Nunca uses dos rostros centrados ni el mismo encuadre consecutivamente. Las escenas 1, 4, 8, 12 y 16 son interrupciones visuales radicales con cambio de escala, composici\xF3n o color. Cuando aparezca el famoso, repite su nombre exacto y el ancla de continuidad; debe ser reconocible, ilustrado y nunca fotorealista. Si interviene una persona real, nunca pidas desnudez, lencer\xEDa, ropa interior, pose sexualizada ni una situaci\xF3n \xEDntima o comprometedora; usa objetos, sets publicitarios, c\xE1maras, telas o met\xE1foras visuales. Se permite collage f\xEDsico/editorial dentro de una \xFAnica composici\xF3n, pero nunca cuadr\xEDcula, split screen, captura de red social, texto legible, letras, logos, marcas, carteles, captions ni UI. El campo narration debe ser exactamente la concatenaci\xF3n, en orden, de las 16 narraciones de escena. No inventes nada fuera del brief.`;
     const sceneSchema = {
       type: "object",
       properties: {
@@ -511,6 +588,27 @@ REPARACI\xD3N OBLIGATORIA: el borrador anterior conten\xEDa regionalismos. Reesc
         data.scenes[15] = { ...lastScene, narration: finalClosingLine, delivery: "remate" };
         data.closingLine = finalClosingLine;
       }
+    }
+    // Punch-up pass (Sebastian 2026-10-09): the first draft of a local model tends to read like a
+    // news summary. A second pass rewrites the same facts in Mala Fama's voice; it is kept only if it
+    // still fits the length and closing rules, otherwise the first draft stays.
+    const draftLines = data.scenes.map((scene) => asString(scene?.narration));
+    const punched = await generateStructured(editorialSystem, `Reescrib\xED estas 16 narraciones de un Reel de chisme como las dir\xEDa MALA FAMA, el diablo maestro de ceremonias: cuenta el chisme armando esc\xE1ndalo, opina, sospecha, compara y se burla con humor negro filoso del ego, la pose y la hipocres\xEDa. Mismos hechos y mismo orden; prohibido agregar hechos nuevos: nada de tuits, declaraciones, gestos, reacciones, silencios ni escenas que el brief no cuente. Si hay hijos o menores, no son blanco de chistes: el veneno va solo contra los adultos famosos. Al menos 8 de las 16 l\xEDneas deben llevar un remate, una burla o una opini\xF3n suya (\u201Cpara m\xED\u201D, \u201Cqu\xE9 casualidad\u201D, \u201Cdigamos la verdad\u201D, \u201Cy ahora viene lo bueno\u201D), sin repetir la misma f\xF3rmula. Cada l\xEDnea entre 7 y 15 palabras; la l\xEDnea 1 nombra al famoso y el conflicto; la l\xEDnea 16 es un veredicto cruel que termina en punto, sin pregunta; como m\xE1ximo 2 preguntas en total. Espa\xF1ol latino neutro, sin voseo.
+BRIEF: ${JSON.stringify(research.verifiedFacts || research.summary || "")}
+NARRACIONES: ${JSON.stringify(draftLines)}`, {
+      type: "object",
+      properties: { lines: { type: "array", minItems: 16, maxItems: 16, items: { type: "string" } } },
+      required: ["lines"]
+    }, 2600).catch(() => null);
+    const punchedLines = asArray(punched?.lines).map((line) => audioWording(line).trim());
+    const wordsOf = (line) => line.split(/\s+/).filter(Boolean).length;
+    const totalWords = punchedLines.reduce((sum, line) => sum + wordsOf(line), 0);
+    const punchFits = punchedLines.length === 16 && punchedLines.every((line) => wordsOf(line) >= 4 && wordsOf(line) <= 20) && totalWords >= 150 && totalWords <= 240 && !/[?¿]/.test(punchedLines[15]) && (punchedLines.join(" ").match(/\?/g) || []).length <= 2 && !regionalismPattern.test(punchedLines.join(" "));
+    if (punchFits) {
+      data.scenes = data.scenes.map((scene, index) => ({ ...scene, narration: punchedLines[index] }));
+      data.closingLine = punchedLines[15];
+    } else {
+      console.warn(`[como-asi] punch-up pass discarded (${punchedLines.length} lines, ${totalWords} words)`);
     }
     const narration = data.scenes.map((scene) => scene && typeof scene === "object" ? asString(scene.narration) : "").filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
     return json({ ...data, narration });

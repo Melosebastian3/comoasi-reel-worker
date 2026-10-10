@@ -40,6 +40,7 @@ jobs:
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
       LLM_MODEL: qwen2.5:14b-instruct
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - name: Check secrets
         run: |
@@ -80,6 +81,8 @@ jobs:
           mkdir -p bundle
           # FLUX.1-schnell is gated on Hugging Face and needs a read token; without one, SDXL-Lightning.
           if [ -n "$HF_TOKEN" ]; then IMAGE_MODEL=flux-schnell; printf '%s' "$HF_TOKEN" > bundle/hf_token; else IMAGE_MODEL=sdxl-lightning; fi
+          # Scripts are written by Groq's free open model when the key exists, else by Ollama on Kaggle.
+          if [ -n "$GROQ_API_KEY" ]; then printf '%s' "$GROQ_API_KEY" > bundle/groq_key; fi
           node local/sync.js export-context bundle/context.json --date "$DATE"
           git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
           printf '{"fresh":%s,"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
