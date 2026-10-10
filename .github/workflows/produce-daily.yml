@@ -6,8 +6,11 @@ name: Produce daily reels
 
 on:
   # Autopilot (approved by Sebastian 2026-10-09): 00:30 Buenos Aires, same-day posts.
+  # GitHub sometimes drops a scheduled run (it skipped 2026-10-10), so a second slot at 03:30
+  # Buenos Aires retries; it stands down when the day's videos are already hosted.
   schedule:
     - cron: '30 3 * * *'
+    - cron: '30 6 * * *'
   workflow_dispatch:
     inputs:
       date:
@@ -28,7 +31,24 @@ permissions:
   contents: write  # test runs push the videos to the review-outputs branch (see last step)
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATE=$(TZ=America/Argentina/Buenos_Aires date +%F)
+          if [ "${{ github.event_name }}" = "schedule" ] && gh release view "media-$DATE" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "media-$DATE already hosted; this backup run stands down"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
   produce:
+    needs: guard
+    if: needs.guard.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 355
     env:
