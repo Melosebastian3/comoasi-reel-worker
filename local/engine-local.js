@@ -484,7 +484,12 @@ Adem\xE1s, isGossip=true solo si es chisme de famosos que la gente comenta: roma
     const inheritedSources = parseTrendSignals(b.sources);
     const searchSeed = [protagonist, eventKey].filter(Boolean).join(" ") || topic;
     const discoveredSignals = await fetchCurrentSignals("viral_internet", searchSeed);
-    const liveSignals = mergeTrendSignals(inheritedSources, discoveredSignals).slice(0, 12);
+    // The selector's own sources go first: a date-sorted merge let newer, unrelated trending items
+    // push them out (2026-10-10: Paula Chaves was researched from AI-lab and football headlines).
+    const tokensOf = (value) => asString(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((token) => token.length >= 4);
+    const protagonistTokens = tokensOf(protagonist);
+    const aboutProtagonist = (signal) => protagonistTokens.length === 0 || tokensOf(`${signal.title} ${signal.text || ""}`).some((token) => protagonistTokens.includes(token));
+    const liveSignals = mergeTrendSignals(inheritedSources, discoveredSignals.filter(aboutProtagonist)).sort((a, b) => Number(inheritedSources.includes(b)) - Number(inheritedSources.includes(a))).slice(0, 12);
     if (liveSignals.length === 0) return error("current_sources_unavailable", 503);
     const scrapedSources = await scrapeTrendSources(liveSignals);
     const scrapedByUrl = new Map(scrapedSources.map((source) => [source.url, source.text]));
@@ -508,6 +513,8 @@ Adem\xE1s, isGossip=true solo si es chisme de famosos que la gente comenta: roma
       required: ["summary", "verifiedFacts", "uncertainClaims", "verificationQueries", "visualEvidence", "safeAngle", "sourceCoverage"]
     };
     const research = await generateStructured(editorialSystem, prompt, schema, 4400);
+    // With no verified facts the story model invents the whole story, so the job stops here.
+    if (asArray(research.verifiedFacts).filter((fact) => asString(fact).trim()).length === 0) return error("research_without_facts", 503);
     return json({
       ...research,
       sources: liveSignals.slice(0, 8),
@@ -609,6 +616,27 @@ NARRACIONES: ${JSON.stringify(draftLines)}`, {
       data.closingLine = punchedLines[15];
     } else {
       console.warn(`[como-asi] punch-up pass discarded (${punchedLines.length} lines, ${totalWords} words)`);
+    }
+    // Final fact check (2026-10-10: a "happiest news" article became a divorce). Jokes and opinions
+    // pass; a line stating as fact something the brief does not say fails the story.
+    const factCheck = (lines) => generateStructured("Eres un verificador de datos estricto. Respond\xE9s solo con lo que dicen los textos dados.", `HECHOS VERIFICADOS: ${JSON.stringify(research.verifiedFacts || [])}
+TITULARES: ${JSON.stringify(asArray(research.sources).map((source) => asString(source?.title)).filter(Boolean).slice(0, 8))}
+GUION: ${JSON.stringify(lines)}
+\xBFAlguna l\xEDnea del guion afirma como hecho algo que los hechos y titulares no dicen o contradicen (una ruptura, divorcio, embarazo, pelea, delito, enfermedad, mudanza, cita o reacci\xF3n inventada)? Las opiniones, burlas, exageraciones obvias y sospechas presentadas como opini\xF3n NO cuentan. supported=false si hay al menos una afirmaci\xF3n de hecho inventada o contradicha, y list\xE1 cu\xE1les en problems.`, {
+      type: "object",
+      properties: { supported: { type: "boolean" }, problems: { type: "array", items: { type: "string" } } },
+      required: ["supported", "problems"]
+    }, 800).catch(() => ({ supported: false, problems: ["fact_check_failed"] }));
+    let checked = await factCheck(data.scenes.map((scene) => asString(scene?.narration)));
+    if (checked.supported !== true && punchFits) {
+      console.warn(`[como-asi] punch-up failed the fact check, back to the draft: ${asArray(checked.problems).join(" | ")}`);
+      data.scenes = data.scenes.map((scene, index) => ({ ...scene, narration: draftLines[index] }));
+      data.closingLine = draftLines[15];
+      checked = await factCheck(draftLines);
+    }
+    if (checked.supported !== true) {
+      console.warn(`[como-asi] story not supported by sources: ${asArray(checked.problems).join(" | ")}`);
+      return error("story_not_supported_by_sources", 503);
     }
     const narration = data.scenes.map((scene) => scene && typeof scene === "object" ? asString(scene.narration) : "").filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
     return json({ ...data, narration });
