@@ -5,12 +5,12 @@
 name: Produce daily reels
 
 on:
-  # Autopilot (approved by Sebastian 2026-10-09): 00:30 Buenos Aires, same-day posts.
-  # GitHub sometimes drops a scheduled run (it skipped 2026-10-10), so a second slot at 03:30
-  # Buenos Aires retries; it stands down once the day's batch is scheduled on Buffer.
+  # Autopilot (approved by Sebastian 2026-10-09). GitHub started scheduled runs 6.5 h late on
+  # 2026-10-10 and later still on 10-11, so the batch for a day starts at 21:00 Buenos Aires the
+  # evening before, with a retry at 00:00; the retry stands down once the day is on Buffer.
   schedule:
-    - cron: '30 3 * * *'
-    - cron: '30 6 * * *'
+    - cron: '0 0 * * *'
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       date:
@@ -40,7 +40,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          DATE=$(TZ=America/Argentina/Buenos_Aires date +%F)
+          # From 18:00 on, the run prepares the next day (see the schedule above).
+          if [ "$(TZ=America/Argentina/Buenos_Aires date +%H)" -ge 18 ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F); else DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
           # publish-batch.sh leaves scheduled.json in the release once a live batch is on Buffer.
           if [ "${{ github.event_name }}" = "schedule" ] && gh api "repos/${{ github.repository }}/releases/tags/media-$DATE" --jq '.assets[].name' 2>/dev/null | grep -qx scheduled.json; then
             echo "media-$DATE already scheduled on Buffer; this backup run stands down"
@@ -96,7 +97,9 @@ jobs:
       - name: Prepare Kaggle input
         run: |
           DATE="${{ inputs.date }}"
-          if [ -z "$DATE" ] && [ "${{ github.event_name }}" = "schedule" ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
+          if [ -z "$DATE" ] && [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "$(TZ=America/Argentina/Buenos_Aires date +%H)" -ge 18 ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F); else DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
+          fi
           [ -n "$DATE" ] || DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F)
           echo "RUN_DATE=$DATE" >> "$GITHUB_ENV"
           mkdir -p bundle
