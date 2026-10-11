@@ -146,3 +146,10 @@ create table if not exists comoasi.viral_learning (
   unique (category, pattern_type, pattern_key)
 );
 create index if not exists viral_learning_category_score_idx on comoasi.viral_learning (category, score desc);
+
+-- One row ('latest') written by scripts/status-report.js for the phone status panel.
+create table if not exists comoasi.status_snapshot (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);

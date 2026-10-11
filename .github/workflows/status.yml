@@ -1,0 +1,44 @@
+# Refreshes the status the phone panel shows (what each slot produced and what Buffer did with it).
+# Read-only towards Buffer and GitHub; it only rewrites comoasi.status_snapshot in the test database.
+name: Status report
+
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_run:
+    workflows: ['Produce daily reels']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: status-report
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ALLOWED_DB_ENDPOINT: ep-lingering-bar-acgncee8
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_ENV: production
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check database
+        run: |
+          case "$DATABASE_URL" in
+            *"@${ALLOWED_DB_ENDPOINT}."*|*"@${ALLOWED_DB_ENDPOINT}-pooler."*) echo "DB: rama de prueba OK" ;;
+            *) echo "::error::DATABASE_URL no apunta a la rama de prueba actions-test de Neon"; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: node scripts/status-report.js
