@@ -160,3 +160,15 @@ jobs:
           git add -A
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Outputs of run ${{ github.run_id }}" || exit 0
           git push origin HEAD:review-outputs
+
+  # GitHub turns off schedules in a repo with no activity for 60 days. Re-enabling the workflow
+  # on every nightly run resets that clock, so the factory keeps running untouched.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/produce-daily.yml/enable"
