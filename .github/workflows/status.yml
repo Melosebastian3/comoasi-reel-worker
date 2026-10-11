@@ -9,9 +9,6 @@ on:
     workflows: ['Produce daily reels']
     types: [completed]
   workflow_dispatch:
-  push:
-    branches: [feat/status-panel]
-    paths: ['scripts/status-report.js', '.github/workflows/status.yml']
 
 permissions:
   actions: read
