@@ -600,7 +600,10 @@ REPARACI\xD3N OBLIGATORIA: el borrador anterior conten\xEDa regionalismos. Reesc
     // news summary. A second pass rewrites the same facts in Mala Fama's voice; it is kept only if it
     // still fits the length and closing rules, otherwise the first draft stays.
     const draftLines = data.scenes.map((scene) => asString(scene?.narration));
-    const punched = await generateStructured(editorialSystem, `Reescrib\xED estas 16 narraciones de un Reel de chisme como las dir\xEDa MALA FAMA, el diablo maestro de ceremonias: cuenta el chisme armando esc\xE1ndalo, opina, sospecha, compara y se burla con humor negro filoso del ego, la pose y la hipocres\xEDa. Mismos hechos y mismo orden; prohibido agregar hechos nuevos: nada de tuits, declaraciones, gestos, reacciones, silencios ni escenas que el brief no cuente. Si hay hijos o menores, no son blanco de chistes: el veneno va solo contra los adultos famosos. Al menos 8 de las 16 l\xEDneas deben llevar un remate, una burla o una opini\xF3n suya (\u201Cpara m\xED\u201D, \u201Cqu\xE9 casualidad\u201D, \u201Cdigamos la verdad\u201D, \u201Cy ahora viene lo bueno\u201D), sin repetir la misma f\xF3rmula. Cada l\xEDnea entre 7 y 15 palabras; la l\xEDnea 1 nombra al famoso y el conflicto; la l\xEDnea 16 es un veredicto cruel que termina en punto, sin pregunta; como m\xE1ximo 2 preguntas en total. Espa\xF1ol latino neutro, sin voseo.
+    // Sebastian 2026-10-11: the fact check must not make the channel boring, so a failed punch-up is
+    // rewritten once with only the false facts removed before falling back to the draft.
+    const punchUp = async (note = "") => {
+    const punched = await generateStructured(editorialSystem, `${note}Reescrib\xED estas 16 narraciones de un Reel de chisme como las dir\xEDa MALA FAMA, el diablo maestro de ceremonias: cuenta el chisme armando esc\xE1ndalo, opina, sospecha, compara y se burla con humor negro filoso del ego, la pose y la hipocres\xEDa. Mismos hechos y mismo orden; prohibido agregar hechos nuevos: nada de tuits, declaraciones, gestos, reacciones, silencios ni escenas que el brief no cuente. Si hay hijos o menores, no son blanco de chistes: el veneno va solo contra los adultos famosos. Picante al m\xE1ximo (Sebastian 2026-10-11: \u201Cenganchador e hijo de puta con el humor negro\u201D): sarcasmo \xE1cido, comparaciones humillantes con el ego y la pose, crueldad elegante y alguna grosería como remate, nunca tibio ni educado. Al menos 11 de las 16 l\xEDneas deben llevar un remate, una burla o una opini\xF3n suya (\u201Cpara m\xED\u201D, \u201Cqu\xE9 casualidad\u201D, \u201Cdigamos la verdad\u201D, \u201Cy ahora viene lo bueno\u201D), sin repetir la misma f\xF3rmula. Cada l\xEDnea entre 7 y 15 palabras; la l\xEDnea 1 nombra al famoso y el conflicto; la l\xEDnea 16 es un veredicto cruel que termina en punto, sin pregunta; como m\xE1ximo 2 preguntas en total. Espa\xF1ol latino neutro, sin voseo.
 BRIEF: ${JSON.stringify(research.verifiedFacts || research.summary || "")}
 NARRACIONES: ${JSON.stringify(draftLines)}`, {
       type: "object",
@@ -611,12 +614,15 @@ NARRACIONES: ${JSON.stringify(draftLines)}`, {
     const wordsOf = (line) => line.split(/\s+/).filter(Boolean).length;
     const totalWords = punchedLines.reduce((sum, line) => sum + wordsOf(line), 0);
     const punchFits = punchedLines.length === 16 && punchedLines.every((line) => wordsOf(line) >= 4 && wordsOf(line) <= 20) && totalWords >= 150 && totalWords <= 240 && !/[?¿]/.test(punchedLines[15]) && (punchedLines.join(" ").match(/\?/g) || []).length <= 2 && !regionalismPattern.test(punchedLines.join(" "));
-    if (punchFits) {
-      data.scenes = data.scenes.map((scene, index) => ({ ...scene, narration: punchedLines[index] }));
-      data.closingLine = punchedLines[15];
-    } else {
-      console.warn(`[como-asi] punch-up pass discarded (${punchedLines.length} lines, ${totalWords} words)`);
-    }
+    if (!punchFits) console.warn(`[como-asi] punch-up pass discarded (${punchedLines.length} lines, ${totalWords} words)`);
+    return punchFits ? punchedLines : null;
+    };
+    const useLines = (lines) => {
+      data.scenes = data.scenes.map((scene, index) => ({ ...scene, narration: lines[index] }));
+      data.closingLine = lines[15];
+    };
+    const punchedLines = await punchUp();
+    if (punchedLines) useLines(punchedLines);
     // Final fact check (2026-10-10: a "happiest news" article became a divorce). Jokes and opinions
     // pass; a line stating as fact something the brief does not say fails the story.
     const factCheck = (lines) => generateStructured("Eres un verificador de datos estricto. Respond\xE9s solo con lo que dicen los textos dados.", `HECHOS VERIFICADOS: ${JSON.stringify(research.verifiedFacts || [])}
@@ -628,11 +634,18 @@ GUION: ${JSON.stringify(lines)}
       required: ["supported", "problems"]
     }, 800).catch(() => ({ supported: false, problems: ["fact_check_failed"] }));
     let checked = await factCheck(data.scenes.map((scene) => asString(scene?.narration)));
-    if (checked.supported !== true && punchFits) {
-      console.warn(`[como-asi] punch-up failed the fact check, back to the draft: ${asArray(checked.problems).join(" | ")}`);
-      data.scenes = data.scenes.map((scene, index) => ({ ...scene, narration: draftLines[index] }));
-      data.closingLine = draftLines[15];
-      checked = await factCheck(draftLines);
+    if (checked.supported !== true && punchedLines) {
+      console.warn(`[como-asi] punch-up failed the fact check, rewriting it: ${asArray(checked.problems).join(" | ")}`);
+      const repunched = await punchUp(`CORRECCI\xD3N: la versi\xF3n anterior afirmaba como hechos cosas que el brief no dice: ${JSON.stringify(checked.problems)}. Sac\xE1 solo esos datos falsos o convertilos en opini\xF3n obvia de Mala Fama, y manten\xE9 todo el veneno y el humor negro. `);
+      if (repunched) {
+        checked = await factCheck(repunched);
+        if (checked.supported === true) useLines(repunched);
+      }
+      if (checked.supported !== true) {
+        console.warn("[como-asi] rewritten punch-up still unsupported, back to the draft");
+        useLines(draftLines);
+        checked = await factCheck(draftLines);
+      }
     }
     if (checked.supported !== true) {
       console.warn(`[como-asi] story not supported by sources: ${asArray(checked.problems).join(" | ")}`);
