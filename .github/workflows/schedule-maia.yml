@@ -1,0 +1,21 @@
+# One-off: schedules the 2026-10-11 Maia Reficco video (made for 08:00, finished late) at 20:30.
+name: Schedule Maia 2026-10-11
+on:
+  push:
+    branches: [ops/schedule-maia-2026-10-11]
+    paths: ['ops/manifest-2026-10-11.json']
+permissions:
+  contents: read
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Schedule on Buffer
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          PUBLISH_ENABLED: 'true'
+        run: node publish/buffer.js ops/manifest-2026-10-11.json --media-base "https://github.com/${{ github.repository }}/releases/download/media-2026-10-11" --live
