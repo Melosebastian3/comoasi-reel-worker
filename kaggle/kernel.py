@@ -124,13 +124,14 @@ def main():
 
     # Sebastian 2026-10-12: the devil voice must not depend on Microsoft. Chatterbox (MIT) clones
     # the fixed reference clip in assets/voice. It needs older torch/transformers than FLUX, so it
-    # gets its own Python 3.11 environment (uv) and runs as a separate server; the install runs in
+    # gets its own Python 3.11 environment (uv) and runs as a separate server (setuptools: its
+    # watermark library imports pkg_resources, missing in a uv venv). The install runs in
     # the background while the text and image models load.
     voice_env = dict(env)
     voice_env["VOICE_REFERENCE"] = f"{APP}/assets/voice/mala-fama-diablo.wav"
     voice_setup = subprocess.Popen(
         "pip install -q uv && uv venv -q -p 3.11 /kaggle/temp/voice && "
-        "uv pip install -q -p /kaggle/temp/voice/bin/python chatterbox-tts && "
+        "uv pip install -q -p /kaggle/temp/voice/bin/python chatterbox-tts 'setuptools<81' && "
         f"/kaggle/temp/voice/bin/python {APP}/scripts/voice_server.py --check {WORK}/voice-clone-check.wav",
         shell=True, env=voice_env, stdout=LOG, stderr=subprocess.STDOUT,
     )
