@@ -1,5 +1,5 @@
-# One-off probe: is edge-tts back, and can the devil voice be cloned with an open-source model
-# (Chatterbox multilingual, MIT) from a fixed reference clip. Read-only, no secrets, no publishing.
+# One-off probe: the full narration path with the cloned devil voice (feat/devil-voice-clone),
+# on CPU, the way kaggle/kernel.py installs it. Read-only, no secrets, no publishing.
 name: TTS probe
 on:
   push:
@@ -9,47 +9,37 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
         with:
-          python-version: '3.11'
-      - run: sudo apt-get install -y -qq ffmpeg >/dev/null
-      - name: Is edge-tts back?
+          ref: feat/devil-voice-clone
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sudo apt-get install -y -qq ffmpeg >/dev/null && npm ci --omit=dev --no-audit --no-fund
+      - name: Voice environment as on Kaggle
         run: |
-          pip install -q 'edge-tts>=7.2'
-          mkdir -p out
-          T='Bienvenidos al expediente de Mala Fama. Hoy, una celebridad que confundió el talento con el ego, y el público le pasó la factura.'
-          if edge-tts --voice es-MX-JorgeNeural --rate=-11% --pitch=-17Hz --text "$T" --write-media out/edge-devil.mp3; then echo "EDGE_OK" | tee out/edge-status.txt; else echo "EDGE_DOWN" | tee out/edge-status.txt; fi
-      - name: Reference clip from a past video (edge-tts voice, music removed with Demucs)
-        if: always()
+          pip install -q uv && uv venv -q -p 3.11 /tmp/voice && uv pip install -q -p /tmp/voice/bin/python chatterbox-tts
+          mkdir -p out && /tmp/voice/bin/python scripts/voice_server.py --check out/check.wav
+          (/tmp/voice/bin/python scripts/voice_server.py > out/voice-server.log 2>&1 &) && sleep 5 && curl -sf http://127.0.0.1:7870/
+      - name: Narration through render.js
+        env:
+          TTS_BACKEND: chatterbox
         run: |
-          [ -s out/edge-devil.mp3 ] || rm -f out/edge-devil.mp3
-          curl -sSfL -o maia.mp4 "https://github.com/${{ github.repository }}/releases/download/media-2026-10-11/manana-d606fee9-5085-4f44-9d71-867058ea342e.mp4"
-          ffmpeg -v error -y -i maia.mp4 -vn -ac 2 -ar 44100 maia.wav
-          pip install -q demucs soundfile 2>&1 | tail -2
-          python -m demucs --two-stems=vocals -n htdemucs -o sep maia.wav
-          ffmpeg -v error -y -i sep/htdemucs/maia/vocals.wav -ac 1 -ar 24000 out/voice-full.wav
-          ffmpeg -v error -y -ss 3 -t 15 -i out/voice-full.wav out/ref-devil.wav
-          ffmpeg -v error -y -i out/voice-full.wav -b:a 96k out/voice-full.mp3 && rm out/voice-full.wav
-      - name: Chatterbox clone of the devil voice
-        if: always()
-        run: |
-          pip install -q chatterbox-tts 2>&1 | tail -3
-          cat > clone.py <<'PY'
-          import os, sys, time, torchaudio
-          from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-          ref = "out/edge-devil.mp3" if os.path.exists("out/edge-devil.mp3") else "out/ref-devil.wav"
-          if not ref: sys.exit("no reference clip")
-          t = time.time()
-          model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
-          text = "Lizy Tagliani soltó un remate tan ácido en MasterChef que hasta el horno pidió licencia. Y Luck Ra, pobre, se quedó sin sabor."
-          wav = model.generate(text, language_id="es", audio_prompt_path=ref, exaggeration=0.6, cfg_weight=0.4)
-          torchaudio.save("out/clone-devil.wav", wav, model.sr)
-          print("clone seconds", round(time.time() - t))
-          PY
-          python clone.py && ffmpeg -v error -y -i out/clone-devil.wav -b:a 128k out/clone-devil.mp3 && rm out/clone-devil.wav
+          cat > narrate.mjs <<'JS'
+          import { createNarrationAudio } from './render.js';
+          const scenes = [
+            { narration: 'Lizy Tagliani entró a MasterChef a cocinar y terminó cocinando a Luck Ra.', delivery: 'golpe' },
+            { narration: 'Tan incondicional no era, dijo, y el estudio se quedó más frío que el postre.', delivery: 'veneno' },
+            { narration: 'Moraleja: en la tele, el plato más picante siempre es el chisme.', delivery: 'remate' },
+          ];
+          const file = await createNarrationAudio(process.cwd() + '/out', scenes, 'es-MX-JorgeNeural', 'actualidad');
+          console.log('narration', file);
+          JS
+          time node narrate.mjs
+          ffmpeg -v error -y -i out/voice.mp3 -b:a 128k out/narracion-diablo.mp3 && rm -f out/voice-block-* out/voice.mp3
       - if: always()
         run: |
-          ls -la out
+          ls -la out; tail -20 out/voice-server.log || true
           cd out && git init -q && git checkout -q -b tts-probe-out && git add . && git -c user.name=gha -c user.email=gha@users.noreply.github.com commit -qm "voice probe" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tts-probe-out
