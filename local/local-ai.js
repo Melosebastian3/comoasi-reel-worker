@@ -103,7 +103,14 @@ async function chat({ system, prompt, schema, maxTokens, temperature }) {
 const groqModel = () => process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The free tier rejects (413) any request whose prompt plus max_completion_tokens passes the
+// per-minute token limit, so the answer budget shrinks to what is left (about 3 chars per token).
+const GROQ_TPM = Number(process.env.GROQ_TPM || 8000);
+
 async function groqChat({ system, prompt, schema, maxTokens, temperature }) {
+  const systemText = `${system || ''}\n\nResponde únicamente con un objeto JSON válido que cumpla este JSON Schema:\n${JSON.stringify(schema)}`.trim();
+  const promptTokens = Math.ceil((systemText.length + String(prompt || '').length) / 3);
+  const answerTokens = Math.max(1200, Math.min(Number(maxTokens || 4000), 6000, GROQ_TPM - 300 - promptTokens));
   for (let attempt = 1; attempt <= 6; attempt += 1) {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -111,10 +118,10 @@ async function groqChat({ system, prompt, schema, maxTokens, temperature }) {
       body: JSON.stringify({
         model: groqModel(),
         messages: [
-          { role: 'system', content: `${system || ''}\n\nResponde únicamente con un objeto JSON válido que cumpla este JSON Schema:\n${JSON.stringify(schema)}`.trim() },
+          { role: 'system', content: systemText },
           { role: 'user', content: prompt },
         ],
-        max_completion_tokens: Math.min(Number(maxTokens || 4000), 6000),
+        max_completion_tokens: answerTokens,
         temperature: temperature ?? 0.7,
         reasoning_effort: 'low',
         response_format: { type: 'json_object' },
