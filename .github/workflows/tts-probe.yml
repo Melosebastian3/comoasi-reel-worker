@@ -39,7 +39,7 @@ jobs:
           cat > clone.py <<'PY'
           import os, sys, time, torchaudio
           from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-          ref = "out/edge-devil.mp3" if os.path.getsize("out/edge-devil.mp3") > 1000 else "out/ref-devil.wav"
+          ref = "out/edge-devil.mp3" if os.path.exists("out/edge-devil.mp3") else "out/ref-devil.wav"
           if not ref: sys.exit("no reference clip")
           t = time.time()
           model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
