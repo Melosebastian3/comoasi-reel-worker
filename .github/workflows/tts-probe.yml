@@ -1,8 +1,10 @@
-# One-off probe: does edge-tts work from a GitHub runner with a current Edge version? Read-only, no secrets.
+# One-off probe: open-source Piper voice as a fallback when edge-tts is refused. Read-only, no secrets.
 name: TTS probe
 on:
   push:
     branches: [ops/tts-probe]
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -10,10 +12,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -q 'edge-tts>=7.2' && pip show edge-tts | head -2
+      - run: sudo apt-get install -y -qq ffmpeg >/dev/null
+      - run: pip install -q piper-tts && pip show piper-tts | head -2
       - run: |
-          F=$(python -c "import edge_tts.constants as c; print(c.__file__)")
-          grep -n "VERSION" "$F"
-          sed -i 's/143\.0\.3650\.75/155.0.4283.45/' "$F"
-          grep -n "VERSION" "$F"
-      - run: python -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media v.mp3 && ls -la v.mp3
+          mkdir -p voices
+          for v in es/es_MX/ald/medium/es_MX-ald-medium es/es_MX/claude/high/es_MX-claude-high; do
+            n=$(basename $v)
+            curl -sSfL -o voices/$n.onnx "https://huggingface.co/rhasspy/piper-voices/resolve/main/$v.onnx"
+            curl -sSfL -o voices/$n.onnx.json "https://huggingface.co/rhasspy/piper-voices/resolve/main/$v.onnx.json"
+          done
+          ls -la voices
+      - run: |
+          T='Bienvenidos al expediente de Mala Fama. Hoy, una celebridad que confundió el talento con el ego.'
+          for n in es_MX-ald-medium es_MX-claude-high; do
+            echo "$T" | python -m piper -m voices/$n.onnx -f $n.wav
+            ffmpeg -v error -y -i $n.wav -af "asetrate=22050*0.86,aresample=22050,atempo=1.08" -b:a 128k $n-deep.mp3
+            ls -la $n.wav $n-deep.mp3
+          done
+          mkdir -p out && cp *.mp3 out/
+      - run: |
+          cd out && git init -q && git checkout -q -b tts-probe-out && git add . && git -c user.name=gha -c user.email=gha@users.noreply.github.com commit -qm "piper samples" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tts-probe-out
