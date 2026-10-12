@@ -1,0 +1,59 @@
+# Prototipo del canal "Insólito" (noticias reales absurdas sobre video de stock). Vive aparte de
+# Mala Fama y no publica nada: cada push a la rama de prueba arma un video y lo deja en la rama
+# review-outputs bajo insolito/<run_id>/ para revisarlo.
+name: Insolito test
+
+on:
+  push:
+    branches: [claude/project-thread-eduvoo]
+    paths: ['canal-insolito/**', '.github/workflows/insolito-test.yml']
+
+concurrency:
+  group: insolito-test
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIPER_VOICE: es_AR-daniela-high
+      PIPER_VOICE_PATH: es/es_AR/daniela/high/es_AR-daniela-high
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tools and voice
+        run: |
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+          pip install -q -r canal-insolito/requirements.txt
+          mkdir -p voice
+          for suffix in .onnx .onnx.json; do
+            curl -fsSL --retry 3 -o "voice/$PIPER_VOICE$suffix" "https://huggingface.co/rhasspy/piper-voices/resolve/main/$PIPER_VOICE_PATH$suffix"
+          done
+          echo "PIPER_MODEL=$PWD/voice/$PIPER_VOICE.onnx" >> "$GITHUB_ENV"
+      - name: Make one video
+        env:
+          OUT_DIR: out
+          HISTORY_FILE: out/history.json
+        run: python canal-insolito/insolito.py 2>&1 | tee out.log
+
+      - name: Push outputs to the review-outputs branch
+        if: always()
+        run: |
+          dir="insolito/${{ github.run_id }}"
+          git fetch origin review-outputs && git worktree add review origin/review-outputs
+          mkdir -p "review/$dir"
+          cp out.log "review/$dir/" 2>/dev/null || true
+          for d in out/*/; do [ -f "$d/video.mp4" ] && cp "$d/video.mp4" "$d/meta.json" "review/$dir/"; done
+          find "review/$dir" -name '*.mp4' -size +90M -delete
+          cd review
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Insolito run ${{ github.run_id }}" || exit 0
+          git push origin HEAD:review-outputs
