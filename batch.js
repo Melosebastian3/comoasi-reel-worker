@@ -14,6 +14,9 @@ const SLOTS = [
   { key: 'mediodia', time: '13:00', market: 'argentina' },
   { key: 'noche', time: '20:30', market: 'internacional' },
 ];
+// Content failures that a different topic can fix; anything else (crashes, timeouts) is not retried.
+const RETRY_WITH_NEW_TOPIC = /story_not_supported_by_sources|research_without_facts|topic_not_grounded_in_sources|recognizable_protagonist_unavailable|duplicate_topic_blocked/;
+const SLOT_ATTEMPTS = 3;
 // Same daily rotation as metricool-automation.js.
 const CATEGORY_ROTATIONS = [
   ['chisme_polemica', 'famosos'],
@@ -57,10 +60,18 @@ async function main() {
     if (job?.status === 'completed') {
       console.log(`[batch] ${runKey} already completed, skipping`);
     } else {
-      if (!job) job = await createJob({ payload: { runKey, category: slot.category, slot: slot.key, date: dateKey } });
-      else await query(`update comoasi.reel_jobs set status='queued', stage='queued', error=null, updated_at=now() where id=$1`, [job.id]);
-      console.log(`[batch] ${runKey} -> job ${job.id} (${slot.category})`);
-      await runJobNow(job.id);
+      for (let attempt = 1; attempt <= SLOT_ATTEMPTS; attempt += 1) {
+        if (!job) job = await createJob({ payload: { runKey, category: slot.category, slot: slot.key, date: dateKey } });
+        else await query(`update comoasi.reel_jobs set status='queued', stage='queued', error=null, updated_at=now() where id=$1`, [job.id]);
+        console.log(`[batch] ${runKey} -> job ${job.id} (${slot.category}, attempt ${attempt}/${SLOT_ATTEMPTS})`);
+        await runJobNow(job.id);
+        const { rows: [state] } = await query('select status, error from comoasi.reel_jobs where id=$1', [job.id]);
+        // A story the sources cannot back leaves the slot empty; try a different topic instead.
+        // The failed topic is avoided on the next attempt (see processJob in job-runner.js).
+        if (state.status === 'completed' || !RETRY_WITH_NEW_TOPIC.test(String(state.error))) break;
+        console.warn(`[batch] ${runKey} failed (${state.error}); trying another topic`);
+        if (attempt < SLOT_ATTEMPTS) job = null;
+      }
     }
     const { rows } = await query('select id, status, stage, error, result, reel_id from comoasi.reel_jobs where id=$1', [job.id]);
     const done = rows[0];

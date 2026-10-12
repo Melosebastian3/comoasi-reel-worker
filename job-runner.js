@@ -315,7 +315,15 @@ async function processJob(id) {
         `select topic, normalized_topic as "normalizedTopic", protagonist, category, event_key as "eventKey" from comoasi.editorial_memory
          where status in ('generated','published') and created_at > now() - interval '48 hours' order by created_at desc limit 12`
       );
-      const avoid = [...recent.rows];
+      // Topics that failed in the last day (no backing for the script, no facts) are avoided too,
+      // so the next slot or retry does not land on the same story (2026-10-12: Marta Fort twice).
+      const failed = await query(
+        `select result->'topicData'->>'topic' as topic, result->'topicData'->>'protagonist' as protagonist
+           from comoasi.reel_jobs
+          where status='failed' and created_at > now() - interval '24 hours' and result->'topicData' is not null
+          order by created_at desc limit 6`
+      );
+      const avoid = [...recent.rows, ...failed.rows.filter(row => row.topic || row.protagonist)];
       for (let attempt = 1; ; attempt += 1) {
         try {
           topicData = await resolveTopic(payload, avoid);

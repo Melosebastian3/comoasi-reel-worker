@@ -394,7 +394,7 @@ const routes = {
     const freshSignals = liveSignals.filter((signal) => !plainTokens(`${signal.title} ${signal.text || ""}`).some((token) => avoidTokens.has(token)));
     const availableSignals = (freshSignals.length >= 5 ? freshSignals : liveSignals).slice(0, 40);
     // Sebastian (2026-10-09): dark humor can be strong, but abuse is off limits.
-    const hardLimits = "\nL\xCDMITES DUROS: el humor negro puede ser fuerte, pero nunca elijas historias de abuso sexual, acoso u hostigamiento (ni denuncias de acoso), violencia de g\xE9nero, maltrato, menores en riesgo, muertes recientes ni enfermedades graves como tema.";
+    const hardLimits = "\nL\xCDMITES DUROS: el humor negro puede ser fuerte, pero nunca elijas historias de abuso sexual, acoso u hostigamiento (ni denuncias de acoso), violencia de g\xE9nero, maltrato, menores en riesgo, muertes recientes ni enfermedades graves como tema. Nunca elijas como protagonista a una persona menor de 18 a\xF1os, aunque sea famosa, participe en un reality o sea hija de famosos.";
     const avoidInstruction = hardLimits + (avoid.length ? `\nPROHIBIDO repetir estos temas ya hechos ni a sus protagonistas: ${JSON.stringify(avoid.map((item) => ({ topic: item?.topic, protagonist: item?.protagonist })))}` : "");
     const prompt = `Fecha/hora actual UTC: ${currentDate}. Categor\xEDa solicitada: ${category}. Mercado editorial: ${market}. ${marketInstruction} ${viralCalibration}
 SE\xD1ALES RECIENTES REALES (\xEDndice \u2192 titular/fuente/fecha): ${JSON.stringify(availableSignals.map((signal, index) => ({ index, ...signal })))}
