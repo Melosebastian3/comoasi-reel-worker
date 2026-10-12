@@ -122,9 +122,21 @@ def main():
         "IMAGE_CONDENSE": "on",
     })
 
-    # edge-tts breaks whenever Microsoft rotates its client version or refuses connections
-    # (403 from every machine on 2026-10-12). Give it a few tries, then switch to Piper, an
-    # open-source voice that runs here, so the day still gets its videos.
+    # Sebastian 2026-10-12: the devil voice must not depend on Microsoft. Chatterbox (MIT) clones
+    # the fixed reference clip in assets/voice. It needs older torch/transformers than FLUX, so it
+    # gets its own Python 3.11 environment (uv) and runs as a separate server; the install runs in
+    # the background while the text and image models load.
+    voice_env = dict(env)
+    voice_env["VOICE_REFERENCE"] = f"{APP}/assets/voice/mala-fama-diablo.wav"
+    voice_setup = subprocess.Popen(
+        "pip install -q uv && uv venv -q -p 3.11 /kaggle/temp/voice && "
+        "uv pip install -q -p /kaggle/temp/voice/bin/python chatterbox-tts && "
+        f"/kaggle/temp/voice/bin/python {APP}/scripts/voice_server.py --check {WORK}/voice-clone-check.wav",
+        shell=True, env=voice_env, stdout=LOG, stderr=subprocess.STDOUT,
+    )
+
+    # Fallbacks if the cloned voice cannot start: edge-tts (Microsoft, refused every machine on
+    # 2026-10-12), then Piper, an open-source voice that runs here, so the day still gets videos.
     for attempt in range(1, 4):
         if sh(f"python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media {WORK}/voice-check.mp3", check=False) == 0:
             os.remove(f"{WORK}/voice-check.mp3")
@@ -183,6 +195,16 @@ def main():
     sh(f"ollama pull {env['LLM_MODEL']}", env=ollama_env)
 
     log(f"image server: {wait_http('http://127.0.0.1:7860/', 3600, image_server)}")
+
+    try:
+        if voice_setup.wait(timeout=1800) != 0:
+            raise SystemExit(f"setup exited with code {voice_setup.returncode}")
+        voice_server = subprocess.Popen(f"/kaggle/temp/voice/bin/python {APP}/scripts/voice_server.py", shell=True, env=voice_env, stdout=LOG, stderr=subprocess.STDOUT)
+        log(f"voice server: {wait_http('http://127.0.0.1:7870/', 300, voice_server)}")
+        env["TTS_BACKEND"] = "chatterbox"
+        log("voice: cloned devil voice (Chatterbox)")
+    except (SystemExit, subprocess.TimeoutExpired) as problem:
+        log(f"cloned voice unavailable ({problem}); using {env.get('TTS_BACKEND', 'edge-tts')}")
 
     args = f"--date {run['date']} --count {run.get('count', 3)}"
     if run.get("fresh"):
