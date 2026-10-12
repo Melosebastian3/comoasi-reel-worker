@@ -25,6 +25,8 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+# Wikimedia answers 429 to browser-like agents without contact info (its User-Agent policy).
+BOT_UA = "InsolitoBot/0.1 (https://github.com/Melosebastian3/comoasi-reel-worker)"
 W, H = 1080, 1920
 MAX_AGE_HOURS = int(os.environ.get("MAX_AGE_HOURS", "72"))
 
@@ -194,10 +196,11 @@ def pexels(query, min_dur):
 
 
 def commons(query, min_dur):
+    time.sleep(1)  # Wikimedia pide no ráfagas
     q = urllib.parse.urlencode({"action": "query", "format": "json", "generator": "search",
                                 "gsrsearch": f"{query} filetype:video", "gsrnamespace": 6, "gsrlimit": 15,
                                 "prop": "imageinfo", "iiprop": "url|extmetadata|mediatype|size"})
-    data = json.loads(http(f"https://commons.wikimedia.org/w/api.php?{q}"))
+    data = json.loads(http(f"https://commons.wikimedia.org/w/api.php?{q}", headers={"User-Agent": BOT_UA}))
     pages = sorted(data.get("query", {}).get("pages", {}).values(), key=lambda p: p.get("index", 99))
     for p in pages:
         info = (p.get("imageinfo") or [{}])[0]
@@ -211,8 +214,12 @@ def commons(query, min_dur):
     return None
 
 
+# Si un bloque no encuentra nada, se ilustra con algo genérico antes que perder el video.
+GENERIC = ["city street people", "crowd walking", "traffic city night"]
+
+
 def find_clip(query, min_dur, used):
-    tries = [query, " ".join(query.split()[:2]), query.split()[0]]
+    tries = [query, " ".join(query.split()[:2]), query.split()[0], *GENERIC]
     for q in dict.fromkeys(tries):
         for source in (pexels, commons):
             try:
@@ -273,7 +280,8 @@ def render(blocks, title, work, out):
 
 
 def http_dl(url, path):
-    path.write_bytes(http(url, timeout=120))
+    headers = {"User-Agent": BOT_UA} if "wikimedia.org" in url else None
+    path.write_bytes(http(url, headers=headers, timeout=120))
 
 
 def main():
