@@ -21,6 +21,17 @@ jobs:
           mkdir -p out
           T='Bienvenidos al expediente de Mala Fama. Hoy, una celebridad que confundió el talento con el ego, y el público le pasó la factura.'
           if edge-tts --voice es-MX-JorgeNeural --rate=-11% --pitch=-17Hz --text "$T" --write-media out/edge-devil.mp3; then echo "EDGE_OK" | tee out/edge-status.txt; else echo "EDGE_DOWN" | tee out/edge-status.txt; fi
+      - name: Reference clip from a past video (edge-tts voice, music removed with Demucs)
+        if: always()
+        run: |
+          [ -s out/edge-devil.mp3 ] || rm -f out/edge-devil.mp3
+          curl -sSfL -o maia.mp4 "https://github.com/${{ github.repository }}/releases/download/media-2026-10-11/manana-d606fee9-5085-4f44-9d71-867058ea342e.mp4"
+          ffmpeg -v error -y -i maia.mp4 -vn -ac 2 -ar 44100 maia.wav
+          pip install -q demucs soundfile 2>&1 | tail -2
+          python -m demucs --two-stems=vocals -n htdemucs -o sep maia.wav
+          ffmpeg -v error -y -i sep/htdemucs/maia/vocals.wav -ac 1 -ar 24000 out/voice-full.wav
+          ffmpeg -v error -y -ss 3 -t 15 -i out/voice-full.wav out/ref-devil.wav
+          ffmpeg -v error -y -i out/voice-full.wav -b:a 96k out/voice-full.mp3 && rm out/voice-full.wav
       - name: Chatterbox clone of the devil voice
         if: always()
         run: |
@@ -28,7 +39,7 @@ jobs:
           cat > clone.py <<'PY'
           import os, sys, time, torchaudio
           from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-          ref = "out/edge-devil.mp3" if os.path.exists("out/edge-devil.mp3") else None
+          ref = "out/edge-devil.mp3" if os.path.getsize("out/edge-devil.mp3") > 1000 else "out/ref-devil.wav"
           if not ref: sys.exit("no reference clip")
           t = time.time()
           model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
