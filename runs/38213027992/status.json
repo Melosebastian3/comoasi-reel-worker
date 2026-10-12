@@ -1,0 +1,1 @@
+{"error": "command failed (1): python3 -m edge_tts --voice es-MX-JorgeNeural --text 'C\u00f3mo as\u00ed' --write-media /kaggle/working/voice-check.mp3"}
