@@ -16,7 +16,8 @@ const SLOTS = [
 ];
 // Content failures that a different topic can fix; anything else (crashes, timeouts) is not retried.
 const RETRY_WITH_NEW_TOPIC = /story_not_supported_by_sources|research_without_facts|topic_not_grounded_in_sources|recognizable_protagonist_unavailable|duplicate_topic_blocked/;
-const SLOT_ATTEMPTS = 3;
+// Sebastian 2026-10-12: a slot must always post something, so keep trying topics before giving up.
+const SLOT_ATTEMPTS = 5;
 // Same daily rotation as metricool-automation.js.
 const CATEGORY_ROTATIONS = [
   ['chisme_polemica', 'famosos'],
