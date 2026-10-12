@@ -1,0 +1,478 @@
+[kernel 07:34:06] run: {"fresh": true, "runId": "38214904891-1", "date": "2026-10-12", "count": 2, "slots": "manana,mediodia", "llmModel": "qwen2.5:14b-instruct", "imageModel": "flux-schnell"}
+[kernel 07:34:06] gpus: 2
+[kernel 07:34:06] $ nvidia-smi || true
+Mon Oct 12 07:34:06 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.178.04             Driver Version: 580.178.04     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Tesla T4                       Off |   00000000:00:04.0 Off |                    0 |
+| N/A   40C    P8             10W /   70W |       0MiB /  15360MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|   1  Tesla T4                       Off |   00000000:00:05.0 Off |                    0 |
+| N/A   39C    P8              9W /   70W |       0MiB /  15360MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+[kernel 07:34:07] $ apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql ffmpeg fonts-dejavu-core xz-utils zstd
+W: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+W: Skipping acquire of configured file 'main/source/Sources' as repository 'https://r2u.stat.illinois.edu/ubuntu noble InRelease' does not seem to provide it (sources.list entry misspelt?)
+Preconfiguring packages ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 129802 files and directories currently installed.)
+Preparing to unpack .../libperl5.38t64_5.38.2-3.2ubuntu0.6_amd64.deb ...
+Unpacking libperl5.38t64:amd64 (5.38.2-3.2ubuntu0.6) over (5.38.2-3.2build2.1) ...
+Preparing to unpack .../perl_5.38.2-3.2ubuntu0.6_amd64.deb ...
+Unpacking perl (5.38.2-3.2ubuntu0.6) over (5.38.2-3.2build2.1) ...
+Preparing to unpack .../perl-base_5.38.2-3.2ubuntu0.6_amd64.deb ...
+Unpacking perl-base (5.38.2-3.2ubuntu0.6) over (5.38.2-3.2build2.1) ...
+Setting up perl-base (5.38.2-3.2ubuntu0.6) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 129802 files and directories currently installed.)
+Preparing to unpack .../00-perl-modules-5.38_5.38.2-3.2ubuntu0.6_all.deb ...
+Unpacking perl-modules-5.38 (5.38.2-3.2ubuntu0.6) over (5.38.2-3.2build2.1) ...
+Selecting previously unselected package libjson-perl.
+Preparing to unpack .../01-libjson-perl_4.10000-1_all.deb ...
+Unpacking libjson-perl (4.10000-1) ...
+Selecting previously unselected package postgresql-client-common.
+Preparing to unpack .../02-postgresql-client-common_257build1.1_all.deb ...
+Unpacking postgresql-client-common (257build1.1) ...
+Selecting previously unselected package ssl-cert.
+Preparing to unpack .../03-ssl-cert_1.1.2ubuntu1_all.deb ...
+Unpacking ssl-cert (1.1.2ubuntu1) ...
+Selecting previously unselected package postgresql-common.
+Preparing to unpack .../04-postgresql-common_257build1.1_all.deb ...
+Adding 'diversion of /usr/bin/pg_config to /usr/bin/pg_config.libpq-dev by postgresql-common'
+Unpacking postgresql-common (257build1.1) ...
+Selecting previously unselected package logrotate.
+Preparing to unpack .../05-logrotate_3.21.0-2build1_amd64.deb ...
+Unpacking logrotate (3.21.0-2build1) ...
+Selecting previously unselected package sysstat.
+Preparing to unpack .../06-sysstat_12.6.1-2_amd64.deb ...
+Unpacking sysstat (12.6.1-2) ...
+Selecting previously unselected package fonts-dejavu-mono.
+Preparing to unpack .../07-fonts-dejavu-mono_2.37-8_all.deb ...
+Unpacking fonts-dejavu-mono (2.37-8) ...
+Selecting previously unselected package fonts-dejavu-core.
+Preparing to unpack .../08-fonts-dejavu-core_2.37-8_all.deb ...
+Unpacking fonts-dejavu-core (2.37-8) ...
+Selecting previously unselected package libcommon-sense-perl:amd64.
+Preparing to unpack .../09-libcommon-sense-perl_3.75-3build3_amd64.deb ...
+Unpacking libcommon-sense-perl:amd64 (3.75-3build3) ...
+Selecting previously unselected package libtypes-serialiser-perl.
+Preparing to unpack .../10-libtypes-serialiser-perl_1.01-1_all.deb ...
+Unpacking libtypes-serialiser-perl (1.01-1) ...
+Selecting previously unselected package libjson-xs-perl.
+Preparing to unpack .../11-libjson-xs-perl_4.040-0ubuntu0.24.04.1_amd64.deb ...
+Unpacking libjson-xs-perl (4.040-0ubuntu0.24.04.1) ...
+Selecting previously unselected package postgresql-client-16.
+Preparing to unpack .../12-postgresql-client-16_16.15-0ubuntu0.24.04.1_amd64.deb ...
+Unpacking postgresql-client-16 (16.15-0ubuntu0.24.04.1) ...
+Selecting previously unselected package postgresql-16.
+Preparing to unpack .../13-postgresql-16_16.15-0ubuntu0.24.04.1_amd64.deb ...
+Unpacking postgresql-16 (16.15-0ubuntu0.24.04.1) ...
+Selecting previously unselected package postgresql.
+Preparing to unpack .../14-postgresql_16+257build1.1_all.deb ...
+Unpacking postgresql (16+257build1.1) ...
+Selecting previously unselected package zstd.
+Preparing to unpack .../15-zstd_1.5.5+dfsg2-2build1.1_amd64.deb ...
+Unpacking zstd (1.5.5+dfsg2-2build1.1) ...
+Setting up logrotate (3.21.0-2build1) ...
+Created symlink /etc/systemd/system/timers.target.wants/logrotate.timer → /usr/lib/systemd/system/logrotate.timer.
+Setting up ssl-cert (1.1.2ubuntu1) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/ssl-cert.service → /usr/lib/systemd/system/ssl-cert.service.
+Setting up perl-modules-5.38 (5.38.2-3.2ubuntu0.6) ...
+Setting up fonts-dejavu-mono (2.37-8) ...
+Setting up fonts-dejavu-core (2.37-8) ...
+Setting up libperl5.38t64:amd64 (5.38.2-3.2ubuntu0.6) ...
+Setting up sysstat (12.6.1-2) ...
+
+Creating config file /etc/default/sysstat with new version
+update-alternatives: using /usr/bin/sar.sysstat to provide /usr/bin/sar (sar) in auto mode
+Created symlink /etc/systemd/system/sysstat.service.wants/sysstat-collect.timer → /usr/lib/systemd/system/sysstat-collect.timer.
+Created symlink /etc/systemd/system/sysstat.service.wants/sysstat-summary.timer → /usr/lib/systemd/system/sysstat-summary.timer.
+Created symlink /etc/systemd/system/multi-user.target.wants/sysstat.service → /usr/lib/systemd/system/sysstat.service.
+Setting up zstd (1.5.5+dfsg2-2build1.1) ...
+Setting up perl (5.38.2-3.2ubuntu0.6) ...
+Setting up libjson-perl (4.10000-1) ...
+Setting up postgresql-client-common (257build1.1) ...
+Setting up postgresql-client-16 (16.15-0ubuntu0.24.04.1) ...
+update-alternatives: using /usr/share/postgresql/16/man/man1/psql.1.gz to provide /usr/share/man/man1/psql.1.gz (psql.1.gz) in auto mode
+Setting up libcommon-sense-perl:amd64 (3.75-3build3) ...
+Setting up postgresql-common (257build1.1) ...
+
+Creating config file /etc/postgresql-common/createcluster.conf with new version
+Building PostgreSQL dictionaries from installed myspell/hunspell packages...
+Removing obsolete dictionary files:
+invoke-rc.d: could not determine current runlevel
+invoke-rc.d: policy-rc.d denied execution of start.
+Created symlink /etc/systemd/system/multi-user.target.wants/postgresql.service → /usr/lib/systemd/system/postgresql.service.
+Setting up libtypes-serialiser-perl (1.01-1) ...
+Setting up libjson-xs-perl (4.040-0ubuntu0.24.04.1) ...
+Setting up postgresql-16 (16.15-0ubuntu0.24.04.1) ...
+Creating new PostgreSQL cluster 16/main ...
+/usr/lib/postgresql/16/bin/initdb -D /var/lib/postgresql/16/main --auth-local peer --auth-host scram-sha-256 --no-instructions
+The files belonging to this database system will be owned by user "postgres".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "en_US.UTF-8".
+The default database encoding has accordingly been set to "UTF8".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+fixing permissions on existing directory /var/lib/postgresql/16/main ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default max_connections ... 100
+selecting default shared_buffers ... 128MB
+selecting default time zone ... Etc/UTC
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+invoke-rc.d: could not determine current runlevel
+invoke-rc.d: policy-rc.d denied execution of start.
+Setting up postgresql (16+257build1.1) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.8) ...
+/sbin/ldconfig.real: /usr/local/lib/libtbbbind_2_5.so.3 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libur_adapter_level_zero.so.0 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtcm.so.1 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtbbbind.so.3 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libur_adapter_level_zero_v2.so.0 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtbbbind_2_0.so.3 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libur_loader.so.0 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtbb.so.12 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libumf.so.1 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtcm_debug.so.1 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libur_adapter_opencl.so.0 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtbbmalloc_proxy.so.2 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libtbbmalloc.so.2 is not a symbolic link
+
+/sbin/ldconfig.real: /usr/local/lib/libhwloc.so.15 is not a symbolic link
+
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for fontconfig (2.15.0-1.1ubuntu2) ...
+[kernel 07:35:13] $ curl -fsSL https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.xz | tar -xJ -C /opt
+[kernel 07:35:16] $ pip install -q 'edge-tts>=7.2' 'diffusers>=0.35,<0.37' 'bitsandbytes>=0.46.1' 'transformers>=4.51,<5' 'accelerate>=1.6' sentencepiece protobuf
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.0/44.0 kB 1.4 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 52.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 MB 48.4 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 79.1 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 566.4/566.4 kB 22.4 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 59.0 MB/s eta 0:00:00
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+gradio 6.26.0 requires huggingface-hub<2.0,>=1.16.0, but you have huggingface-hub 0.36.2 which is incompatible.
+[kernel 07:35:52] $ python3 -c "import torch, diffusers, bitsandbytes; from diffusers import FluxPipeline, StableDiffusionXLPipeline; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '-', 'diffusers', diffusers.__version__, 'bnb', bitsandbytes.__version__)"
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+torch 2.11.0+cu128 cuda True Tesla T4 diffusers 0.36.0 bnb 0.50.2
+[kernel 07:37:19] $ python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media /kaggle/working/voice-check.mp3
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 588, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=9bfb9dc777b547ab8a2f6a85c0ac15e8&Sec-MS-GEC=7C2B5B9B4E5EF464AC56327AB4F1CC0EE31DEB358D0DDF60B4EE07B35C6B279A&Sec-MS-GEC-Version=1-143.0.3650.75'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/__main__.py", line 6, in <module>
+    main()
+    ~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 141, in main
+    asyncio.run(amain())
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 196, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 136, in amain
+    await _run_tts(args)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 73, in _run_tts
+    async for chunk in communicate.stream():
+    ...<3 lines>...
+            submaker.feed(chunk)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 596, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=bda7122c039448a1ac659f54074d8ccf&Sec-MS-GEC=7C2B5B9B4E5EF464AC56327AB4F1CC0EE31DEB358D0DDF60B4EE07B35C6B279A&Sec-MS-GEC-Version=1-143.0.3650.75'
+[kernel 07:37:20] voice check failed (attempt 1/4); retrying in 90 s
+[kernel 07:38:50] $ python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media /kaggle/working/voice-check.mp3
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 588, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=e260691eef854bedae3aee9932f7974b&Sec-MS-GEC=7C2B5B9B4E5EF464AC56327AB4F1CC0EE31DEB358D0DDF60B4EE07B35C6B279A&Sec-MS-GEC-Version=1-143.0.3650.75'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/__main__.py", line 6, in <module>
+    main()
+    ~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 141, in main
+    asyncio.run(amain())
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 196, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 136, in amain
+    await _run_tts(args)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 73, in _run_tts
+    async for chunk in communicate.stream():
+    ...<3 lines>...
+            submaker.feed(chunk)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 596, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=9836be83287348069e0d978322e82b21&Sec-MS-GEC=7C2B5B9B4E5EF464AC56327AB4F1CC0EE31DEB358D0DDF60B4EE07B35C6B279A&Sec-MS-GEC-Version=1-143.0.3650.75'
+[kernel 07:38:51] voice check failed (attempt 2/4); retrying in 90 s
+[kernel 07:40:21] $ python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media /kaggle/working/voice-check.mp3
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 588, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=00c5668ec0c1423f9b483778e9dfb093&Sec-MS-GEC=DC77B64C6C180E14EA68547E8327621F7D88F515135FB615E1D631C0033B757A&Sec-MS-GEC-Version=1-143.0.3650.75'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/__main__.py", line 6, in <module>
+    main()
+    ~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 141, in main
+    asyncio.run(amain())
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 196, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 136, in amain
+    await _run_tts(args)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 73, in _run_tts
+    async for chunk in communicate.stream():
+    ...<3 lines>...
+            submaker.feed(chunk)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 596, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=e2cdc13e54ef49b3bb9a4a1902ba2f51&Sec-MS-GEC=DC77B64C6C180E14EA68547E8327621F7D88F515135FB615E1D631C0033B757A&Sec-MS-GEC-Version=1-143.0.3650.75'
+[kernel 07:40:21] voice check failed (attempt 3/4); retrying in 90 s
+[kernel 07:41:51] $ python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media /kaggle/working/voice-check.mp3
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 588, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=07d36618691b406989180585ade4ec00&Sec-MS-GEC=DC77B64C6C180E14EA68547E8327621F7D88F515135FB615E1D631C0033B757A&Sec-MS-GEC-Version=1-143.0.3650.75'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/__main__.py", line 6, in <module>
+    main()
+    ~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 141, in main
+    asyncio.run(amain())
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 196, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 136, in amain
+    await _run_tts(args)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/util.py", line 73, in _run_tts
+    async for chunk in communicate.stream():
+    ...<3 lines>...
+            submaker.feed(chunk)
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 596, in stream
+    async for message in self.__stream():
+        yield message
+  File "/usr/local/lib/python3.13/dist-packages/edge_tts/communicate.py", line 465, in __stream
+    ) as session, session.ws_connect(
+                  ~~~~~~~~~~~~~~~~~~^
+        f"{WSS_URL}&ConnectionId={connect_id()}"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        ssl=_SSL_CTX,
+        ^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1693, in __aenter__
+    self._resp: _RetType_co = await self._coro
+                              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/aiohttp/client.py", line 1266, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 403, message='Invalid response status', url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=3bbe5be510f04d2d8eb903d452264034&Sec-MS-GEC=DC77B64C6C180E14EA68547E8327621F7D88F515135FB615E1D631C0033B757A&Sec-MS-GEC-Version=1-143.0.3650.75'
+[kernel 07:41:52] stopped: command failed (1): python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media /kaggle/working/voice-check.mp3
