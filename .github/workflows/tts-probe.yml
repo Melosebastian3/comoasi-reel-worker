@@ -20,7 +20,7 @@ jobs:
       - run: sudo apt-get install -y -qq ffmpeg >/dev/null && npm ci --omit=dev --no-audit --no-fund
       - name: Voice environment as on Kaggle
         run: |
-          pip install -q uv && uv venv -q -p 3.11 /tmp/voice && uv pip install -q -p /tmp/voice/bin/python chatterbox-tts
+          pip install -q uv && uv venv -q -p 3.11 /tmp/voice && uv pip install -q -p /tmp/voice/bin/python chatterbox-tts 'setuptools<81'
           mkdir -p out && /tmp/voice/bin/python scripts/voice_server.py --check out/check.wav
           (/tmp/voice/bin/python scripts/voice_server.py > out/voice-server.log 2>&1 &) && sleep 5 && curl -sf http://127.0.0.1:7870/
       - name: Narration through render.js
