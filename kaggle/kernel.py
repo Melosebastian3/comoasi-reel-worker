@@ -118,7 +118,12 @@ def main():
     })
 
     # edge-tts breaks whenever Microsoft rotates its client version; fail now instead of after the images.
-    sh(f"python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media {WORK}/voice-check.mp3")
+    # Microsoft also refuses some connections for a while (403 on 2026-10-12), so give it a few tries.
+    for attempt in range(1, 5):
+        if sh(f"python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media {WORK}/voice-check.mp3", check=attempt == 4) == 0:
+            break
+        log(f"voice check failed (attempt {attempt}/4); retrying in 90 s")
+        time.sleep(90)
     os.remove(f"{WORK}/voice-check.mp3")
 
     # Throwaway database with the real schema and the editorial memory exported by Actions.
