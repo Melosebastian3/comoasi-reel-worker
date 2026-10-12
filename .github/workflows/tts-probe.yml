@@ -1,0 +1,14 @@
+# One-off probe: does edge-tts work from a GitHub runner (vs Kaggle)? Read-only, no secrets.
+name: TTS probe
+on:
+  push:
+    branches: [ops/tts-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q 'edge-tts>=7.2' && pip show edge-tts | head -2
+      - run: python -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media v.mp3 && ls -la v.mp3
