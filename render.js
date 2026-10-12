@@ -74,6 +74,17 @@ async function synthesizeEdgeTts(text, voice, style, inputPath, outputPath) {
     '--file', inputPath,
     '--write-media', outputPath,
   ];
+  if (process.env.TTS_BACKEND === 'piper') {
+    // Open-source fallback when Microsoft refuses edge-tts (kaggle/kernel.py decides).
+    // Pitched down and slightly sped up so it stays close to Mala Fama's deep voice.
+    const wavPath = `${outputPath}.wav`;
+    await run('sh', ['-c', 'python3 -m piper -m "$PIPER_MODEL" -f "$2" < "$1"', 'piper', inputPath, wavPath], { timeoutMs: 120000 });
+    const tempo = Math.min(1.5, Math.max(0.7, 1.08 * (1 + Number(style.rate || 0) / 100)));
+    await run('ffmpeg', ['-v', 'error', '-y', '-i', wavPath, '-af', `asetrate=22050*0.86,aresample=22050,atempo=${tempo.toFixed(3)}`, '-codec:a', 'libmp3lame', '-b:a', '128k', outputPath], { timeoutMs: 90000 });
+    await fs.rm(wavPath, { force: true }).catch(() => {});
+    console.log(`[como-asi] voice block completed with Piper (${text.length} chars)`);
+    return;
+  }
   if (process.env.TTS_BACKEND === 'espeak') {
     // Offline test voice only (no network); production keeps edge-tts.
     const wavPath = `${outputPath}.wav`;
