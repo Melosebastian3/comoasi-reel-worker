@@ -74,6 +74,32 @@ async function synthesizeEdgeTts(text, voice, style, inputPath, outputPath) {
     '--file', inputPath,
     '--write-media', outputPath,
   ];
+  if (process.env.TTS_BACKEND === 'chatterbox') {
+    // Sebastian 2026-10-12: the devil voice must not depend on Microsoft. scripts/voice_server.py
+    // clones the fixed reference clip with Chatterbox (MIT) on this machine.
+    const wavPath = `${outputPath}.wav`;
+    const url = process.env.VOICE_SERVER_URL || 'http://127.0.0.1:7870';
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await fetch(`${url}/tts`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text, out: wavPath, exaggeration: style.exaggeration ?? 0.6, cfg: style.cfg ?? 0.4 }),
+          signal: AbortSignal.timeout(900000),
+        });
+        if (!response.ok) throw new Error(`voice_server_${response.status}: ${(await response.text()).slice(0, 200)}`);
+        await run('ffmpeg', ['-v', 'error', '-y', '-i', wavPath, '-codec:a', 'libmp3lame', '-b:a', '128k', outputPath], { timeoutMs: 90000 });
+        await fs.rm(wavPath, { force: true }).catch(() => {});
+        console.log(`[como-asi] voice block completed with the cloned devil voice (${text.length} chars)`);
+        return;
+      } catch (error) {
+        lastError = error;
+        console.warn(`[como-asi] cloned voice attempt ${attempt} failed`, error instanceof Error ? error.message : String(error));
+      }
+    }
+    throw lastError;
+  }
   if (process.env.TTS_BACKEND === 'piper') {
     // Open-source fallback when Microsoft refuses edge-tts (kaggle/kernel.py decides).
     // Pitched down and slightly sped up so it stays close to Mala Fama's deep voice.
@@ -239,11 +265,12 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const tensionLift = profile.tension > 0.75 ? 2 : 0;
   // Ritmo conversado y teatral: la energía viene del contraste, no de correr.
   const deliveryStyles = {
-    golpe: { rate: -7 + tensionLift, pitch: -14, volume: 12 },
-    veneno: { rate: -11 + tensionLift, pitch: -17, volume: 11 },
-    suspenso: { rate: -15 + tensionLift, pitch: -20, volume: 10 },
-    incredula: { rate: -8 + tensionLift, pitch: -12, volume: 12 },
-    remate: { rate: -12 + tensionLift, pitch: -22, volume: 13 },
+    // exaggeration/cfg drive the cloned voice; rate/pitch/volume drive edge-tts.
+    golpe: { rate: -7 + tensionLift, pitch: -14, volume: 12, exaggeration: 0.7, cfg: 0.4 },
+    veneno: { rate: -11 + tensionLift, pitch: -17, volume: 11, exaggeration: 0.6, cfg: 0.4 },
+    suspenso: { rate: -15 + tensionLift, pitch: -20, volume: 10, exaggeration: 0.5, cfg: 0.35 },
+    incredula: { rate: -8 + tensionLift, pitch: -12, volume: 12, exaggeration: 0.75, cfg: 0.4 },
+    remate: { rate: -12 + tensionLift, pitch: -22, volume: 13, exaggeration: 0.75, cfg: 0.4 },
   };
 
   const pauseAfter = (block, index) => {
@@ -267,6 +294,13 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
     clipPaths.push(clipPath);
     if (typeof onBlockProgress === 'function') await onBlockProgress(index + 1, blocks.length);
   }
+  if (process.env.TTS_BACKEND === 'chatterbox') {
+    // Give the GPU back to the image and text models until the next narration.
+    await fetch(`${process.env.VOICE_SERVER_URL || 'http://127.0.0.1:7870'}/unload`, { method: 'POST', body: '{}' }).catch(() => {});
+  }
+  // The cloned voice already has the final deep tone (its reference comes from a finished video),
+  // so only the other voices get the pitch drop.
+  const pitchDrop = process.env.TTS_BACKEND === 'chatterbox' ? '' : 'asetrate=44160,aresample=48000,atempo=1.08696,';
 
   const voicePath = path.join(workDir, 'voice.mp3');
   const inputs = clipPaths.flatMap(file => ['-i', file]);
@@ -278,7 +312,7 @@ export async function createNarrationAudio(workDir, scenesOrNarration, voice = '
   const labels = clipPaths.map((_, index) => `[part${index}]`).join('');
   const filter = [
     ...prepared,
-    `${labels}concat=n=${clipPaths.length}:v=0:a=1,asetrate=44160,aresample=48000,atempo=1.08696,highpass=f=48,lowpass=f=10400,equalizer=f=92:t=q:w=0.9:g=5.8,equalizer=f=185:t=q:w=1.1:g=2.2,equalizer=f=2650:t=q:w=1:g=-2.6,acompressor=threshold=-20dB:ratio=1.7:attack=18:release=240,loudnorm=I=-17:LRA=11:TP=-1.5[voice]`,
+    `${labels}concat=n=${clipPaths.length}:v=0:a=1,${pitchDrop}highpass=f=48,lowpass=f=10400,equalizer=f=92:t=q:w=0.9:g=5.8,equalizer=f=185:t=q:w=1.1:g=2.2,equalizer=f=2650:t=q:w=1:g=-2.6,acompressor=threshold=-20dB:ratio=1.7:attack=18:release=240,loudnorm=I=-17:LRA=11:TP=-1.5[voice]`,
   ].join(';');
   await run('ffmpeg', [
     '-y', ...inputs,
