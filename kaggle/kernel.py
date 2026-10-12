@@ -33,6 +33,11 @@ def log(message):
     LOG.write(line + "\n")
 
 
+# Fallback voice when edge-tts is refused: Mexican Spanish male voice, pitched down in render.js.
+PIPER_VOICE = "es_MX-claude-high"
+PIPER_VOICE_PATH = "es/es_MX/claude/high/es_MX-claude-high"
+
+
 def sh(command, env=None, check=True):
     log(f"$ {command}")
     result = subprocess.run(command, shell=True, env=env, stdout=LOG, stderr=subprocess.STDOUT)
@@ -117,9 +122,26 @@ def main():
         "IMAGE_CONDENSE": "on",
     })
 
-    # edge-tts breaks whenever Microsoft rotates its client version; fail now instead of after the images.
-    sh(f"python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media {WORK}/voice-check.mp3")
-    os.remove(f"{WORK}/voice-check.mp3")
+    # edge-tts breaks whenever Microsoft rotates its client version or refuses connections
+    # (403 from every machine on 2026-10-12). Give it a few tries, then switch to Piper, an
+    # open-source voice that runs here, so the day still gets its videos.
+    for attempt in range(1, 4):
+        if sh(f"python3 -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media {WORK}/voice-check.mp3", check=False) == 0:
+            os.remove(f"{WORK}/voice-check.mp3")
+            break
+        log(f"voice check failed (attempt {attempt}/3)")
+        if attempt < 3:
+            time.sleep(60)
+    else:
+        log("edge-tts unavailable; using the Piper voice")
+        voice_dir = "/kaggle/temp/piper"
+        os.makedirs(voice_dir, exist_ok=True)
+        sh("pip install -q piper-tts")
+        for suffix in (".onnx", ".onnx.json"):
+            sh(f"curl -fsSL -o {voice_dir}/{PIPER_VOICE}{suffix} https://huggingface.co/rhasspy/piper-voices/resolve/main/{PIPER_VOICE_PATH}{suffix}")
+        env.update({"TTS_BACKEND": "piper", "PIPER_MODEL": f"{voice_dir}/{PIPER_VOICE}.onnx"})
+        sh(f"echo 'Cómo así' | python3 -m piper -m {env['PIPER_MODEL']} -f {WORK}/voice-check.wav")
+        os.remove(f"{WORK}/voice-check.wav")
 
     # Throwaway database with the real schema and the editorial memory exported by Actions.
     sh("service postgresql start")
