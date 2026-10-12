@@ -1,4 +1,5 @@
-# One-off probe: open-source Piper voice as a fallback when edge-tts is refused. Read-only, no secrets.
+# One-off probe: is edge-tts back, and can the devil voice be cloned with an open-source model
+# (Chatterbox multilingual, MIT) from a fixed reference clip. Read-only, no secrets, no publishing.
 name: TTS probe
 on:
   push:
@@ -8,27 +9,36 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: sudo apt-get install -y -qq ffmpeg >/dev/null
-      - run: pip install -q piper-tts && pip show piper-tts | head -2
-      - run: |
-          mkdir -p voices
-          for v in es/es_MX/ald/medium/es_MX-ald-medium es/es_MX/claude/high/es_MX-claude-high; do
-            n=$(basename $v)
-            curl -sSfL -o voices/$n.onnx "https://huggingface.co/rhasspy/piper-voices/resolve/main/$v.onnx"
-            curl -sSfL -o voices/$n.onnx.json "https://huggingface.co/rhasspy/piper-voices/resolve/main/$v.onnx.json"
-          done
-          ls -la voices
-      - run: |
-          T='Bienvenidos al expediente de Mala Fama. Hoy, una celebridad que confundió el talento con el ego.'
-          for n in es_MX-ald-medium es_MX-claude-high; do
-            echo "$T" | python -m piper -m voices/$n.onnx -f $n.wav
-            ffmpeg -v error -y -i $n.wav -af "asetrate=22050*0.86,aresample=22050,atempo=1.08" -b:a 128k $n-deep.mp3
-            ls -la $n.wav $n-deep.mp3
-          done
-          mkdir -p out && cp *.mp3 out/
-      - run: |
-          cd out && git init -q && git checkout -q -b tts-probe-out && git add . && git -c user.name=gha -c user.email=gha@users.noreply.github.com commit -qm "piper samples" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tts-probe-out
+      - name: Is edge-tts back?
+        run: |
+          pip install -q 'edge-tts>=7.2'
+          mkdir -p out
+          T='Bienvenidos al expediente de Mala Fama. Hoy, una celebridad que confundió el talento con el ego, y el público le pasó la factura.'
+          if edge-tts --voice es-MX-JorgeNeural --rate=-11% --pitch=-17Hz --text "$T" --write-media out/edge-devil.mp3; then echo "EDGE_OK" | tee out/edge-status.txt; else echo "EDGE_DOWN" | tee out/edge-status.txt; fi
+      - name: Chatterbox clone of the devil voice
+        if: always()
+        run: |
+          pip install -q chatterbox-tts 2>&1 | tail -3
+          cat > clone.py <<'PY'
+          import os, sys, time, torchaudio
+          from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+          ref = "out/edge-devil.mp3" if os.path.exists("out/edge-devil.mp3") else None
+          if not ref: sys.exit("no reference clip")
+          t = time.time()
+          model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
+          text = "Lizy Tagliani soltó un remate tan ácido en MasterChef que hasta el horno pidió licencia. Y Luck Ra, pobre, se quedó sin sabor."
+          wav = model.generate(text, language_id="es", audio_prompt_path=ref, exaggeration=0.6, cfg_weight=0.4)
+          torchaudio.save("out/clone-devil.wav", wav, model.sr)
+          print("clone seconds", round(time.time() - t))
+          PY
+          python clone.py && ffmpeg -v error -y -i out/clone-devil.wav -b:a 128k out/clone-devil.mp3 && rm out/clone-devil.wav
+      - if: always()
+        run: |
+          ls -la out
+          cd out && git init -q && git checkout -q -b tts-probe-out && git add . && git -c user.name=gha -c user.email=gha@users.noreply.github.com commit -qm "voice probe" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tts-probe-out
