@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-12",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "mediodia",
+      "time": "13:00",
+      "category": "argentina:cultura_pop_actualidad",
+      "jobId": "47821df7-d19d-4f38-ba91-0c5f43d12a99",
+      "reelId": "0d2ca297-5403-46d0-9970-5d9a8e6779bc",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/0d2ca297-5403-46d0-9970-5d9a8e6779bc/final.mp4",
+      "coverAssetPath": "covers/0d2ca297-5403-46d0-9970-5d9a8e6779bc/mala-fama-devil-v1/cover.png",
+      "title": "Lizy Tagliani escandaliza a MasterChef",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Cuando Lizy Tagliani suelta el dardo: \"Tan incondicional no era\" y Luck Ra se queda sin sabor. 🎤🔥 #LizyVsLuck #MasterChefDrama #ÁcidoVerbal #ComoAsí #EscándaloPop\n\n#ComoAsi",
+          "hashtags": [
+            "LizyVsLuck",
+            "MasterChefDrama",
+            "ÁcidoVerbal",
+            "ComoAsí",
+            "EscándaloPop",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Te atreves a servir sarcasmo en un plato de reality? 🤔"
+        },
+        "youtube": {
+          "title": "Lizy Tagliani escandaliza a MasterChef con su ácido remate a Luck Ra",
+          "hashtags": [
+            "LizyVsLuck",
+            "MasterChefEscándalo",
+            "ComoAsí",
+            "EscándaloPop",
+            "ComoAsi"
+          ],
+          "description": "En el último episodio de MasterChef, Lizy Tagliani lanza un comentario que corta más que cualquier cuchillo de cocina: \"Tan incondicional no era\". El cantante Luck Ra queda rojo de vergüenza mientras la audiencia aplaude la crueldad elegante de la humorista. Analizamos el momento, el impacto y por qué el drama alimenta la fama artificial. #LizyVsLuck #MasterChefEscándalo #ComoAsí\n\n#EscándaloPop #ComoAsi"
+        },
+        "instagram": {
+          "caption": "Lizy Tagliani destroza MasterChef con un dardo verbal a Luck Ra. \"Tan incondicional no era\" y el reality se vuelve un circo de sarcasmo. La reina del ácido se lleva la corona mientras Luck se queda rojo de vergüenza. #LizyVsLuck #MasterChefEscándalo #SarcasmoÁcido #ComoAsí #RealityShow\n\n#EscándaloPop",
+          "hashtags": [
+            "LizyVsLuck",
+            "MasterChefEscándalo",
+            "SarcasmoÁcido",
+            "ComoAsí",
+            "RealityShow",
+            "EscándaloPop"
+          ],
+          "pinnedComment": "¿Quién más cree que el mejor ingrediente de MasterChef ahora es el veneno verbal? 🍴💥"
+        }
+      }
+    }
+  ]
+}
