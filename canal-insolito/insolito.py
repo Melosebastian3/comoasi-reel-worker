@@ -85,17 +85,20 @@ def fetch_candidates():
             if key in seen:
                 continue
             seen.add(key)
+            body = clean(it.findtext("{http://purl.org/rss/1.0/modules/content/}encoded"))
             items.append({"title": title, "link": link, "summary": clean(it.findtext("description"))[:280],
-                          "source": urllib.parse.urlparse(link).netloc})
+                          "body": body[:4500], "source": urllib.parse.urlparse(link).netloc})
     log(f"{len(items)} noticias candidatas")
     return items
 
 
-def article_text(link):
-    """Texto del artículo para que el guion no invente; si no se puede leer, queda el resumen."""
+def article_text(story):
+    """Texto completo de la nota: el guion solo puede usar esto, así que sin texto no hay video."""
+    if len(story.get("body", "")) >= 500:
+        return story["body"]
     try:
         import trafilatura
-        raw = http(link, timeout=25).decode("utf-8", "ignore")
+        raw = trafilatura.fetch_url(story["link"]) or http(story["link"], timeout=25).decode("utf-8", "ignore")
         return (trafilatura.extract(raw) or "")[:4500]
     except Exception as e:
         log(f"no pude leer el artículo: {e}")
@@ -145,12 +148,18 @@ def pick_story(cands, history):
     return [cands[i] for i in picks if i < len(cands)]
 
 
-def write_script(story, text):
-    facts = text or story["summary"]
+def rank_input(cands):
+    # Primero las que traen la nota completa en el feed: son las que se pueden contar sin inventar.
+    return sorted(cands, key=lambda c: len(c.get("body", "")) < 500)
+
+
+def write_script(story, facts):
     return groq(
         "Sos el guionista de 'Insólito', un canal argentino de noticias reales absurdas. El narrador "
         "cuenta la historia como un amigo que no lo puede creer: rioplatense, con voseo, ironía y "
-        "remates cortos, sin malas palabras fuertes. Nunca inventes datos: nombres, lugares, cifras "
+        "remates cortos, sin malas palabras fuertes. Cada bloque cuenta un dato del artículo y le suma "
+        "una reacción graciosa (comparación absurda, exageración, comentario de barrio). Nada de frases "
+        "de noticiero ni de relleno ('la convención más grande del planeta'). Nunca inventes datos: nombres, lugares, cifras "
         "y hechos salen SOLO del artículo. Los chistes son opinión del narrador, no hechos. " + LIMITS,
         f"Título: {story['title']}\nFuente: {story['source']}\nArtículo:\n{facts}\n\n"
         "Escribí un guion de 40 a 55 segundos (110 a 150 palabras en total) en 7 a 9 bloques. "
@@ -195,6 +204,9 @@ def pexels(query, min_dur):
     return None
 
 
+JUNK = re.compile(r"screen|tutorial|wiki|logo|animat|cartoon|slides|lecture|interview|intro", re.I)
+
+
 def commons(query, min_dur):
     time.sleep(1)  # Wikimedia pide no ráfagas
     q = urllib.parse.urlencode({"action": "query", "format": "json", "generator": "search",
@@ -208,6 +220,8 @@ def commons(query, min_dur):
         lic = meta.get("LicenseShortName", {}).get("value", "")
         if (not info.get("url") or float(info.get("duration") or 0) < min_dur or info.get("size", 0) > 200e6
                 or "NC" in lic or "ND" in lic):
+            continue
+        if info.get("width", 0) < 640 or JUNK.search(p.get("title", "")):
             continue
         artist = clean(meta.get("Artist", {}).get("value", "")) or "Wikimedia Commons"
         return {"url": info["url"], "credit": f"{artist[:60]} ({lic}, Wikimedia Commons)", "id": f"commons-{p['pageid']}"}
@@ -288,10 +302,14 @@ def main():
     out_root = Path(os.environ.get("OUT_DIR", "out"))
     hist_file = Path(os.environ.get("HISTORY_FILE", "history.json"))
     history = json.loads(hist_file.read_text()) if hist_file.exists() else []
-    ranking = pick_story(fetch_candidates(), history)
+    ranking = pick_story(rank_input(fetch_candidates()), history)
     for story in ranking:
         log(f"probando: {story['title']}")
-        script = write_script(story, article_text(story["link"]))
+        facts = article_text(story)
+        if len(facts) < 500:
+            log("sin texto suficiente de la nota, paso a la siguiente")
+            continue
+        script = write_script(story, facts)
         if not script.get("apta") or not script.get("bloques"):
             log(f"descartada: {script.get('motivo')}")
             continue
