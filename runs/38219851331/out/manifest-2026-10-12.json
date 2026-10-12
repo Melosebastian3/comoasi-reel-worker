@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-12",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "manana",
+      "time": "08:00",
+      "category": "argentina:famosos",
+      "jobId": "dfba54b6-19de-4e36-8bcf-648aa082e87a",
+      "reelId": null,
+      "status": "failed",
+      "error": "topic_not_grounded_in_sources",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    },
+    {
+      "slot": "mediodia",
+      "time": "13:00",
+      "category": "argentina:cultura_pop_actualidad",
+      "jobId": "1acb9c18-cce8-466c-a860-77187b2d4dd2",
+      "reelId": null,
+      "status": "failed",
+      "error": "topic_not_grounded_in_sources|{\"topic\":\"Antonio López, exparticipante de MasterChef Celebrity, habla por primera vez sobre su delicado cuadro de salud\",\"protagonist\":\"Antonio López\"}",
+      "videoAssetPath": null,
+      "coverAssetPath": null,
+      "title": null,
+      "publishingKit": null
+    }
+  ]
+}
