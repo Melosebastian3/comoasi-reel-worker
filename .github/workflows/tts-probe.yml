@@ -1,4 +1,4 @@
-# One-off probe: does edge-tts work from a GitHub runner (vs Kaggle)? Read-only, no secrets.
+# One-off probe: does edge-tts work from a GitHub runner with a current Edge version? Read-only, no secrets.
 name: TTS probe
 on:
   push:
@@ -11,4 +11,9 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -q 'edge-tts>=7.2' && pip show edge-tts | head -2
+      - run: |
+          F=$(python -c "import edge_tts.constants as c; print(c.__file__)")
+          grep -n "VERSION" "$F"
+          sed -i 's/143\.0\.3650\.75/155.0.4283.45/' "$F"
+          grep -n "VERSION" "$F"
       - run: python -m edge_tts --voice es-MX-JorgeNeural --text 'Cómo así' --write-media v.mp3 && ls -la v.mp3
