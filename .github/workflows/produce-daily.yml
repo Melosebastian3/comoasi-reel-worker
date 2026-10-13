@@ -5,12 +5,12 @@
 name: Produce daily reels
 
 on:
-  # Autopilot (approved by Sebastian 2026-10-09). GitHub started scheduled runs 6.5 h late on
-  # 2026-10-10 and later still on 10-11, so the batch for a day starts at 21:00 Buenos Aires the
-  # evening before, with a retry at 00:00; the retry stands down once the day is on Buffer.
+  # Autopilot (approved by Sebastian 2026-10-09). GitHub delays or drops scheduled runs, worst at
+  # the top of the hour: the 00:00 UTC run started at 09:55 on 2026-10-12 and not at all on 10-13.
+  # So there is a try every hour from 21:23 to 05:23 Buenos Aires; the first one that starts makes
+  # the day and every later one stands down once the day is on Buffer (guard below).
   schedule:
-    - cron: '0 0 * * *'
-    - cron: '0 3 * * *'
+    - cron: '23 0-8 * * *'
   workflow_dispatch:
     inputs:
       date:

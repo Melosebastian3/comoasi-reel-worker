@@ -14,9 +14,8 @@ const SLOTS = [
   { key: 'mediodia', time: '13:00', market: 'argentina' },
   { key: 'noche', time: '20:30', market: 'internacional' },
 ];
-// Content failures that a different topic can fix; anything else (crashes, timeouts) is not retried.
-const RETRY_WITH_NEW_TOPIC = /story_not_supported_by_sources|research_without_facts|topic_not_grounded_in_sources|recognizable_protagonist_unavailable|duplicate_topic_blocked/;
-// Sebastian 2026-10-12: a slot must always post something, so keep trying topics before giving up.
+// Sebastian 2026-10-12: a slot must always post something, so any failure (content checks, missing
+// sources, a model timeout) gets another topic, up to this many tries.
 const SLOT_ATTEMPTS = 5;
 // Same daily rotation as metricool-automation.js.
 const CATEGORY_ROTATIONS = [
@@ -67,9 +66,8 @@ async function main() {
         console.log(`[batch] ${runKey} -> job ${job.id} (${slot.category}, attempt ${attempt}/${SLOT_ATTEMPTS})`);
         await runJobNow(job.id);
         const { rows: [state] } = await query('select status, error from comoasi.reel_jobs where id=$1', [job.id]);
-        // A story the sources cannot back leaves the slot empty; try a different topic instead.
         // The failed topic is avoided on the next attempt (see processJob in job-runner.js).
-        if (state.status === 'completed' || !RETRY_WITH_NEW_TOPIC.test(String(state.error))) break;
+        if (state.status === 'completed') break;
         console.warn(`[batch] ${runKey} failed (${state.error}); trying another topic`);
         if (attempt < SLOT_ATTEMPTS) job = null;
       }
