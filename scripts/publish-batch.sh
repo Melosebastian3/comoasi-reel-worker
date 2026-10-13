@@ -31,6 +31,11 @@ if [ -z "${BUFFER_API_KEY:-}" ]; then echo "BUFFER_API_KEY not set; videos hoste
 MODE=""
 [ "${PUBLISH_ENABLED:-}" = "true" ] && MODE="--live"
 node publish/buffer.js "$MANIFEST" --media-base "https://github.com/$REPO/releases/download/$TAG" $MODE | tee /tmp/scheduled.json
-# Marks the day as done so the backup schedule does not post it twice.
-[ -n "$MODE" ] && gh release upload "$TAG" /tmp/scheduled.json --repo "$REPO" --clobber
+# Marks the day as done so the backup schedule does not post it twice, but only when something is
+# on Buffer: on 2026-10-13 an empty night was marked done and the retry stood down.
+if [ -n "$MODE" ] && grep -q '"postId"' /tmp/scheduled.json; then
+  gh release upload "$TAG" /tmp/scheduled.json --repo "$REPO" --clobber
+else
+  echo "nothing scheduled on Buffer; the day stays open for the next try"
+fi
 exit 0
