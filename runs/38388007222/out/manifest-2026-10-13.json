@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-13",
+  "engineMode": "local",
+  "reels": [
+    {
+      "slot": "mediodia",
+      "time": "13:00",
+      "category": "argentina:famosos",
+      "jobId": "771e9418-3045-4d66-a52a-e4cb4800f439",
+      "reelId": "c5b88825-b5b6-4662-a58a-e056e59037f5",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/c5b88825-b5b6-4662-a58a-e056e59037f5/final.mp4",
+      "coverAssetPath": "covers/c5b88825-b5b6-4662-a58a-e056e59037f5/mala-fama-devil-v1/cover.png",
+      "title": "Romina Yan: la familia que se desmorona",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Valentín Yan denuncia a Darío Giordano: 'Golpes, tirones de pelo, comida fría como castigo'. El viudo de Romina Yan niega todo. #RominaYan #ViolenciaFamiliar #Famosos #ComoAsi\n\n#TelenovelaReal #EscandaloFamiliar",
+          "hashtags": [
+            "RominaYan",
+            "ViolenciaFamiliar",
+            "Famosos",
+            "ComoAsi",
+            "TelenovelaReal",
+            "EscandaloFamiliar"
+          ],
+          "pinnedComment": "¿Qué piensan de esta acusación? ¿Es Giordano un villano arrepentido?"
+        },
+        "youtube": {
+          "title": "Romina Yan: La familia que se desmorona",
+          "hashtags": [
+            "RominaYan",
+            "ViolenciaFamiliar",
+            "Famosos",
+            "ComoAsi",
+            "TelenovelaReal",
+            "EscandaloFamiliar"
+          ],
+          "description": "Valentín Yan acusa a Darío Giordano de violencia familiar: 'Golpes, tirones de pelo, comida fría como castigo'. El viudo de Romina Yan niega todo. #RominaYan #ViolenciaFamiliar #Famosos #ComoAsi\n\n#TelenovelaReal #EscandaloFamiliar"
+        },
+        "instagram": {
+          "caption": "Valentín Yan acusa a Darío Giordano de violencia familiar: 'Golpes, tirones de pelo, comida fría como castigo'. El viudo de Romina Yan niega todo. #RominaYan #ViolenciaFamiliar #Famosos #CulturaPop #ComoAsi\n\n#TelenovelaReal",
+          "hashtags": [
+            "RominaYan",
+            "ViolenciaFamiliar",
+            "Famosos",
+            "CulturaPop",
+            "ComoAsi",
+            "TelenovelaReal"
+          ],
+          "pinnedComment": "¿Qué opinan sobre esta denuncia? ¿Se puede confiar en las palabras de Giordano?"
+        }
+      }
+    },
+    {
+      "slot": "noche",
+      "time": "20:30",
+      "category": "internacional:chisme_polemica",
+      "jobId": "bad07090-7fae-4600-aa59-311d4f8bb468",
+      "reelId": "a518d4cb-a598-4b3d-8602-b396413097ac",
+      "status": "completed",
+      "error": null,
+      "videoAssetPath": "reels/a518d4cb-a598-4b3d-8602-b396413097ac/final.mp4",
+      "coverAssetPath": "covers/a518d4cb-a598-4b3d-8602-b396413097ac/mala-fama-devil-v1/cover.png",
+      "title": "Amanda Seyfried rechaza papeles con sexo",
+      "publishingKit": {
+        "tiktok": {
+          "caption": "Cuando la industria exige desnudos y ella dice ‘no’, el escenario se vuelve un circo. Amanda Seyfried corta la pornografía de Hollywood y nos deja con la boca abierta. #AmandaSeyfried #DesnudosObligatorios #ComoAsí #HumorNegro #CulturaPop\n\n#ComoAsi",
+          "hashtags": [
+            "AmandaSeyfried",
+            "DesnudosObligatorios",
+            "ComoAsí",
+            "HumorNegro",
+            "CulturaPop",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Hasta cuándo la presión del ‘naked with a stranger’ seguirá dictando roles? 🤔"
+        },
+        "youtube": {
+          "title": "Amanda Seyfried rechaza los papeles con sexo: el escándalo que sacude Hollywood",
+          "hashtags": [
+            "AmandaSeyfried",
+            "DesnudosObligatorios",
+            "ComoAsí",
+            "HumorNegro",
+            "CulturaPop",
+            "ComoAsi"
+          ],
+          "description": "Amanda Seyfried se niega a aceptar papeles donde el desnudo es requisito y critica abiertamente la hipersexualización de la industria. Desde una conversación en los Hamptons hasta la declaración citada por Variety el 13 de octubre, la actriz levanta la voz contra el circo sexual que domina la TV. Analizamos la postura de Seyfried, el impacto en su carrera post‑Oscar y qué significa para otras estrellas. Humor negro, sátira y la firma de ¿Cómo Así? al estilo de Mala Fama.\n\n#AmandaSeyfried #DesnudosObligatorios #ComoAsí #HumorNegro #CulturaPop\n\n#ComoAsi"
+        },
+        "instagram": {
+          "caption": "Amanda Seyfried dice basta a los desnudos obligatorios y deja a Hollywood boquiabierto. La actriz rechaza papeles donde el sexo es requisito y llama al circo sexual una farsa. ¿Se atreve a romper el molde o solo se escabulle del escándalo? #AmandaSeyfried #NoAlDesnudoForzado #ComoAsí #CulturaPop #HumorNegro\n\n#ComoAsi",
+          "hashtags": [
+            "AmandaSeyfried",
+            "NoAlDesnudoForzado",
+            "ComoAsí",
+            "CulturaPop",
+            "HumorNegro",
+            "ComoAsi"
+          ],
+          "pinnedComment": "¿Crees que más estrellas seguirán el ejemplo de Seyfried o el precio del cuerpo seguirá siendo la entrada al club? 💀"
+        }
+      }
+    }
+  ]
+}
