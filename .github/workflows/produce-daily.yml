@@ -5,6 +5,11 @@
 name: Produce daily reels
 
 on:
+  # One-off (Sebastian OK on card 2026-10-13): the night made no videos, so pushing
+  # ops/rerun-date.txt on this branch makes and posts that day's 13:00 and 20:30 videos.
+  push:
+    branches: [ops/rerun-2026-10-13]
+    paths: [ops/rerun-date.txt]
   # Autopilot (approved by Sebastian 2026-10-09). GitHub delays or drops scheduled runs, worst at
   # the top of the hour: the 00:00 UTC run started at 09:55 on 2026-10-12 and not at all on 10-13.
   # So there is a try every hour from 21:23 to 05:23 Buenos Aires; the first one that starts makes
@@ -97,6 +102,7 @@ jobs:
       - name: Prepare Kaggle input
         run: |
           DATE="${{ inputs.date }}"
+          if [ "${{ github.event_name }}" = "push" ]; then DATE=$(tr -d '[:space:]' < ops/rerun-date.txt); fi
           if [ -z "$DATE" ] && [ "${{ github.event_name }}" = "schedule" ]; then
             if [ "$(TZ=America/Argentina/Buenos_Aires date +%H)" -ge 18 ]; then DATE=$(TZ=America/Argentina/Buenos_Aires date -d tomorrow +%F); else DATE=$(TZ=America/Argentina/Buenos_Aires date +%F); fi
           fi
@@ -110,7 +116,7 @@ jobs:
           node local/sync.js export-context bundle/context.json --date "$DATE"
           git archive --format=tar.gz -o bundle/bundle.tar.gz HEAD
           printf '{"fresh":%s,"runId":"%s","date":"%s","count":%s,"slots":"%s","llmModel":"%s","imageModel":"%s"}\n' \
-            "${{ github.event_name == 'push' || github.event_name == 'schedule' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || ((github.event_name == 'push' || github.event_name == 'schedule') && '3') || '1' }}" "${{ inputs.slots }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
+            "${{ github.event_name == 'push' || github.event_name == 'schedule' }}" "${{ github.run_id }}-${{ github.run_attempt }}" "$DATE" "${{ inputs.count || (github.event_name == 'push' && '2') || (github.event_name == 'schedule' && '3') || '1' }}" "${{ inputs.slots || (github.event_name == 'push' && 'mediodia,noche') || '' }}" "$LLM_MODEL" "$IMAGE_MODEL" > bundle/run.json
           cat bundle/run.json
 
       - name: Generate on Kaggle GPU
@@ -133,7 +139,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-          PUBLISH_ENABLED: ${{ github.event_name == 'schedule' && 'true' || vars.PUBLISH_ENABLED }}
+          PUBLISH_ENABLED: ${{ (github.event_name == 'schedule' || github.event_name == 'push') && 'true' || vars.PUBLISH_ENABLED }}
         run: scripts/publish-batch.sh kaggle-out/out "$RUN_DATE"
 
       - name: Keep videos as a run artifact (visible to repo readers)
